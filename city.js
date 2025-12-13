@@ -2,16 +2,18 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// City class - builds a proper city with roads and buildings
+// City class - builds a proper city with road grid and buildings
 class City {
     constructor(container) {
         this.container = container;
-        this.grid = new Map(); // Map of "x,y" -> tile data
+        this.grid = new Map(); // "x,y" -> tile data
         this.models = {};
-        this.tileSize = 2; // Each tile is 2 units (from -1 to 1)
-        this.gridRadius = 8; // City extends from -8 to 8
+        this.tileSize = 2; // Each tile is 2x2 units
+        this.blockSize = 3; // Buildings in 3x3 blocks
+        this.gridRadius = 12; // City extends this many tiles from center
         this.mixers = [];
         this.clock = new THREE.Clock();
+        this.growthOrder = []; // Track order to grow city
 
         this.init();
         this.loadModels();
@@ -25,7 +27,7 @@ class City {
         // Camera
         const aspect = this.container.clientWidth / this.container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000);
-        this.camera.position.set(15, 20, 15);
+        this.camera.position.set(20, 25, 20);
         this.camera.lookAt(0, 0, 0);
 
         // Renderer
@@ -40,8 +42,8 @@ class City {
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
-        this.controls.minDistance = 8;
-        this.controls.maxDistance = 50;
+        this.controls.minDistance = 10;
+        this.controls.maxDistance = 60;
         this.controls.maxPolarAngle = Math.PI / 2.2;
 
         // Lighting
@@ -49,16 +51,16 @@ class City {
         this.scene.add(ambientLight);
 
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(10, 20, 10);
+        dirLight.position.set(15, 30, 15);
         dirLight.castShadow = true;
         dirLight.shadow.mapSize.width = 2048;
         dirLight.shadow.mapSize.height = 2048;
         dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 50;
-        dirLight.shadow.camera.left = -20;
-        dirLight.shadow.camera.right = 20;
-        dirLight.shadow.camera.top = 20;
-        dirLight.shadow.camera.bottom = -20;
+        dirLight.shadow.camera.far = 100;
+        dirLight.shadow.camera.left = -30;
+        dirLight.shadow.camera.right = 30;
+        dirLight.shadow.camera.top = 30;
+        dirLight.shadow.camera.bottom = -30;
         this.scene.add(dirLight);
 
         window.addEventListener('resize', () => this.onResize());
@@ -74,15 +76,15 @@ class City {
         this.sharedTexture = await this.textureLoader.loadAsync(texturePath);
         this.sharedTexture.flipY = false;
 
-        // All available models
+        // Model paths
         this.modelPaths = {
-            // Roads
+            // Roads (all have integrated bases)
             road_straight: 'assets/kaykit/city/road_straight.gltf',
             road_corner: 'assets/kaykit/city/road_corner.gltf',
             road_tsplit: 'assets/kaykit/city/road_tsplit.gltf',
             road_junction: 'assets/kaykit/city/road_junction.gltf',
 
-            // Buildings (with base)
+            // Buildings (with base - standalone)
             building_A: 'assets/kaykit/city/building_A.gltf',
             building_B: 'assets/kaykit/city/building_B.gltf',
             building_C: 'assets/kaykit/city/building_C.gltf',
@@ -98,24 +100,62 @@ class City {
             streetlight: 'assets/kaykit/city/streetlight.gltf',
             firehydrant: 'assets/kaykit/city/firehydrant.gltf',
             trash_A: 'assets/kaykit/city/trash_A.gltf',
-            trafficlight_A: 'assets/kaykit/city/trafficlight_A.gltf',
+            dumpster: 'assets/kaykit/city/dumpster.gltf',
+
+            // Vehicles
+            car_sedan: 'assets/kaykit/city/car_sedan.gltf',
+            car_taxi: 'assets/kaykit/city/car_taxi.gltf',
+            car_police: 'assets/kaykit/city/car_police.gltf',
         };
 
-        // Building tiers (small to large)
-        this.buildingTiers = [
-            ['building_A', 'building_B'],           // Tier 0: small
-            ['building_C', 'building_D'],           // Tier 1: medium
-            ['building_E', 'building_F'],           // Tier 2: large
-            ['building_G', 'building_H'],           // Tier 3: skyscrapers
-        ];
+        // Building tiers by size
+        this.buildingTiers = {
+            small: ['building_A', 'building_B'],
+            medium: ['building_C', 'building_D'],
+            large: ['building_E', 'building_F'],
+            skyscraper: ['building_G', 'building_H'],
+        };
+
+        // Precompute growth order - spiral out from center
+        this.computeGrowthOrder();
 
         console.log('City initialized');
         this.loaded = true;
 
-        // Start with initial layout if no save
-        const hasSave = localStorage.getItem('tinyHabitsCity');
-        if (!hasSave) {
-            await this.buildInitialRoads();
+        // Build the road grid immediately
+        this.buildRoadGrid();
+    }
+
+    // Build the complete road grid upfront
+    async buildRoadGrid() {
+        const spacing = this.blockSize + 1; // 4
+
+        // Place roads in a grid pattern
+        for (let x = -this.gridRadius; x <= this.gridRadius; x++) {
+            for (let y = -this.gridRadius; y <= this.gridRadius; y++) {
+                if (this.isRoadPosition(x, y)) {
+                    await this.placeRoad(x, y);
+                }
+            }
+        }
+
+        console.log('Road grid complete');
+    }
+
+    // Compute spiral growth order from center
+    computeGrowthOrder() {
+        this.growthOrder = [];
+        const maxDist = this.gridRadius;
+
+        // Add positions in order of distance from center
+        for (let dist = 0; dist <= maxDist; dist++) {
+            for (let x = -dist; x <= dist; x++) {
+                for (let y = -dist; y <= dist; y++) {
+                    if (Math.max(Math.abs(x), Math.abs(y)) === dist) {
+                        this.growthOrder.push({ x, y });
+                    }
+                }
+            }
         }
     }
 
@@ -163,13 +203,20 @@ class City {
         };
     }
 
-    // Build the initial road grid
-    async buildInitialRoads() {
-        // Create a cross of roads at the center
-        await this.placeRoad(0, 0);
+    // Check if a position should be a road
+    isRoadPosition(x, y) {
+        // Roads every (blockSize + 1) tiles, creating a grid
+        const spacing = this.blockSize + 1; // 4
+        return (x % spacing === 0) || (y % spacing === 0);
     }
 
-    // Get adjacent road count and directions
+    // Check if position is at a road intersection
+    isIntersection(x, y) {
+        const spacing = this.blockSize + 1;
+        return (x % spacing === 0) && (y % spacing === 0);
+    }
+
+    // Get adjacent tiles that are roads
     getAdjacentRoads(x, y) {
         const dirs = [
             { dx: 1, dy: 0, bit: 0 },  // East
@@ -180,7 +227,9 @@ class City {
 
         const adjacent = [];
         for (const dir of dirs) {
-            const tile = this.grid.get(this.key(x + dir.dx, y + dir.dy));
+            const nx = x + dir.dx;
+            const ny = y + dir.dy;
+            const tile = this.grid.get(this.key(nx, ny));
             if (tile && tile.type === 'road') {
                 adjacent.push(dir.bit);
             }
@@ -188,36 +237,42 @@ class City {
         return adjacent;
     }
 
-    // Choose road model based on connections
-    getRoadModel(connections) {
+    // Determine road model and rotation based on connections
+    // Adding 90 degrees (Math.PI/2) to all rotations to fix alignment
+    getRoadConfig(connections) {
         const count = connections.length;
+        const offset = Math.PI / 2; // 90 degree offset
 
         if (count === 0) {
-            return { model: 'road_straight', rotation: 0 };
+            return { model: 'road_straight', rotation: offset };
         }
         if (count === 1) {
-            // Dead end - use straight pointing toward connection
-            const rot = connections[0] * (Math.PI / 2);
-            return { model: 'road_straight', rotation: rot };
+            // Dead end - point toward connection
+            return { model: 'road_straight', rotation: connections[0] * (Math.PI / 2) + offset };
         }
         if (count === 2) {
             const [a, b] = connections.sort((x, y) => x - y);
-            if ((b - a) === 2) {
-                // Straight road
-                return { model: 'road_straight', rotation: (a % 2) * (Math.PI / 2) };
+            if (b - a === 2) {
+                // Straight (opposite sides)
+                return { model: 'road_straight', rotation: a * (Math.PI / 2) + offset };
             } else {
-                // Corner
-                return { model: 'road_corner', rotation: a * (Math.PI / 2) };
+                // Corner - rotation based on which corner
+                // Connections are: 0=E, 1=N, 2=W, 3=S
+                if (a === 0 && b === 1) return { model: 'road_corner', rotation: Math.PI + offset }; // NE
+                if (a === 1 && b === 2) return { model: 'road_corner', rotation: Math.PI / 2 + offset }; // NW
+                if (a === 2 && b === 3) return { model: 'road_corner', rotation: 0 + offset }; // SW
+                if (a === 0 && b === 3) return { model: 'road_corner', rotation: -Math.PI / 2 + offset }; // SE
+                return { model: 'road_corner', rotation: a * (Math.PI / 2) + offset };
             }
         }
         if (count === 3) {
-            // T-split - find missing direction
+            // T-split - find the missing direction
             const all = [0, 1, 2, 3];
             const missing = all.find(d => !connections.includes(d));
-            return { model: 'road_tsplit', rotation: ((missing + 2) % 4) * (Math.PI / 2) };
+            return { model: 'road_tsplit', rotation: (missing + 2) * (Math.PI / 2) + offset };
         }
         // 4-way junction
-        return { model: 'road_junction', rotation: 0 };
+        return { model: 'road_junction', rotation: offset };
     }
 
     async placeRoad(x, y) {
@@ -225,7 +280,7 @@ class City {
         if (this.grid.has(k)) return null;
 
         const connections = this.getAdjacentRoads(x, y);
-        const { model: modelId, rotation } = this.getRoadModel(connections);
+        const { model: modelId, rotation } = this.getRoadConfig(connections);
 
         const model = await this.loadModel(modelId);
         if (!model) return null;
@@ -240,10 +295,11 @@ class City {
             type: 'road',
             modelId,
             mesh,
+            rotation,
             x, y
         });
 
-        // Update neighboring roads
+        // Update adjacent roads to reconnect properly
         await this.updateAdjacentRoads(x, y);
 
         return { type: 'road', name: 'Road' };
@@ -263,15 +319,13 @@ class City {
             const tile = this.grid.get(this.key(nx, ny));
 
             if (tile && tile.type === 'road') {
-                // Recalculate this road's model
                 const connections = this.getAdjacentRoads(nx, ny);
-                const { model: modelId, rotation } = this.getRoadModel(connections);
+                const { model: modelId, rotation } = this.getRoadConfig(connections);
 
-                if (modelId !== tile.modelId) {
-                    // Remove old mesh
+                // Only update if model or rotation changed
+                if (modelId !== tile.modelId || rotation !== tile.rotation) {
                     this.scene.remove(tile.mesh);
 
-                    // Add new mesh
                     const model = await this.loadModel(modelId);
                     if (model) {
                         const pos = this.worldPos(nx, ny);
@@ -282,145 +336,89 @@ class City {
 
                         tile.modelId = modelId;
                         tile.mesh = mesh;
+                        tile.rotation = rotation;
                     }
-                } else {
-                    // Just update rotation
-                    tile.mesh.rotation.y = rotation;
                 }
             }
         }
     }
 
-    async placeBuilding(x, y, buildingId) {
+    async placeBuilding(x, y, modelId) {
         const k = this.key(x, y);
         if (this.grid.has(k)) return null;
 
-        const model = await this.loadModel(buildingId);
+        const model = await this.loadModel(modelId);
         if (!model) return null;
 
         const pos = this.worldPos(x, y);
         const mesh = model.clone();
         mesh.position.set(pos.x, 0, pos.z);
+        // Random rotation in 90 degree increments
         mesh.rotation.y = Math.floor(Math.random() * 4) * (Math.PI / 2);
         this.scene.add(mesh);
 
         this.grid.set(k, {
             type: 'building',
-            modelId: buildingId,
+            modelId,
             mesh,
             x, y
         });
 
-        return { type: 'building', name: buildingId };
+        return { type: 'building', name: modelId.replace('building_', 'Building ') };
     }
 
-    // Find spots adjacent to roads that don't have buildings
-    findBuildingSpots() {
-        const spots = [];
-        const dirs = [
-            { dx: 1, dy: 0 },
-            { dx: 0, dy: -1 },
-            { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 },
-        ];
+    // Pick a building based on distance from center
+    pickBuilding(x, y) {
+        const dist = Math.max(Math.abs(x), Math.abs(y));
 
-        for (const [, tile] of this.grid) {
-            if (tile.type === 'road') {
-                for (const dir of dirs) {
-                    const nx = tile.x + dir.dx;
-                    const ny = tile.y + dir.dy;
-                    const k = this.key(nx, ny);
-
-                    if (!this.grid.has(k) && Math.abs(nx) <= this.gridRadius && Math.abs(ny) <= this.gridRadius) {
-                        // Check this spot isn't already in our list
-                        if (!spots.find(s => s.x === nx && s.y === ny)) {
-                            const dist = Math.abs(nx) + Math.abs(ny);
-                            spots.push({ x: nx, y: ny, dist });
-                        }
-                    }
-                }
-            }
+        let tier;
+        if (dist <= 2) {
+            tier = 'skyscraper';
+        } else if (dist <= 5) {
+            tier = 'large';
+        } else if (dist <= 8) {
+            tier = 'medium';
+        } else {
+            tier = 'small';
         }
 
-        return spots;
+        const options = this.buildingTiers[tier];
+        return options[Math.floor(Math.random() * options.length)];
     }
 
-    // Find spots to extend roads
-    findRoadExtensionSpots() {
-        const spots = [];
-        const dirs = [
-            { dx: 1, dy: 0 },
-            { dx: 0, dy: -1 },
-            { dx: -1, dy: 0 },
-            { dx: 0, dy: 1 },
-        ];
-
-        for (const [, tile] of this.grid) {
-            if (tile.type === 'road') {
-                for (const dir of dirs) {
-                    const nx = tile.x + dir.dx;
-                    const ny = tile.y + dir.dy;
-                    const k = this.key(nx, ny);
-
-                    if (!this.grid.has(k) && Math.abs(nx) <= this.gridRadius && Math.abs(ny) <= this.gridRadius) {
-                        if (!spots.find(s => s.x === nx && s.y === ny)) {
-                            const dist = Math.abs(nx) + Math.abs(ny);
-                            spots.push({ x: nx, y: ny, dist });
-                        }
-                    }
-                }
+    // Find next empty position to grow
+    findNextGrowthPosition() {
+        for (const pos of this.growthOrder) {
+            const k = this.key(pos.x, pos.y);
+            if (!this.grid.has(k) &&
+                Math.abs(pos.x) <= this.gridRadius &&
+                Math.abs(pos.y) <= this.gridRadius) {
+                return pos;
             }
         }
-
-        return spots;
-    }
-
-    // Main grow function - called when habits are completed
-    async grow() {
-        const tileCount = this.grid.size;
-
-        // Strategy: alternate between roads and buildings
-        // Start with more roads, then fill in buildings
-        const shouldPlaceRoad = tileCount < 5 || (tileCount % 3 === 0);
-
-        if (shouldPlaceRoad) {
-            const roadSpots = this.findRoadExtensionSpots();
-            if (roadSpots.length > 0) {
-                // Prefer extending in a grid pattern
-                roadSpots.sort((a, b) => a.dist - b.dist);
-                const spot = roadSpots[Math.floor(Math.random() * Math.min(3, roadSpots.length))];
-                return await this.placeRoad(spot.x, spot.y);
-            }
-        }
-
-        // Place a building
-        const buildingSpots = this.findBuildingSpots();
-        if (buildingSpots.length > 0) {
-            // Sort by distance - closer to center = taller buildings
-            buildingSpots.sort((a, b) => a.dist - b.dist);
-            const spot = buildingSpots[Math.floor(Math.random() * Math.min(5, buildingSpots.length))];
-
-            // Pick building tier based on distance from center
-            let tier;
-            if (spot.dist <= 2) tier = 3;      // Downtown skyscrapers
-            else if (spot.dist <= 4) tier = 2; // Large buildings
-            else if (spot.dist <= 6) tier = 1; // Medium buildings
-            else tier = 0;                      // Small buildings
-
-            const buildings = this.buildingTiers[tier];
-            const buildingId = buildings[Math.floor(Math.random() * buildings.length)];
-
-            return await this.placeBuilding(spot.x, spot.y, buildingId);
-        }
-
-        // If no building spots, try roads again
-        const roadSpots = this.findRoadExtensionSpots();
-        if (roadSpots.length > 0) {
-            const spot = roadSpots[Math.floor(Math.random() * roadSpots.length)];
-            return await this.placeRoad(spot.x, spot.y);
-        }
-
         return null;
+    }
+
+    // Main grow function - only places buildings (roads are pre-built)
+    async grow() {
+        const pos = this.findNextGrowthPosition();
+        if (!pos) return null;
+
+        // Skip road positions - they're already built
+        if (this.isRoadPosition(pos.x, pos.y)) {
+            // Find next non-road position
+            for (const p of this.growthOrder) {
+                const k = this.key(p.x, p.y);
+                if (!this.grid.has(k) && !this.isRoadPosition(p.x, p.y)) {
+                    const buildingId = this.pickBuilding(p.x, p.y);
+                    return await this.placeBuilding(p.x, p.y, buildingId);
+                }
+            }
+            return null;
+        }
+
+        const buildingId = this.pickBuilding(pos.x, pos.y);
+        return await this.placeBuilding(pos.x, pos.y, buildingId);
     }
 
     getStats() {
@@ -436,14 +434,16 @@ class City {
     }
 
     save() {
+        // Only save buildings - roads are auto-generated
         const data = [];
         for (const [, tile] of this.grid) {
-            data.push({
-                x: tile.x,
-                y: tile.y,
-                type: tile.type,
-                modelId: tile.modelId,
-            });
+            if (tile.type === 'building') {
+                data.push({
+                    x: tile.x,
+                    y: tile.y,
+                    modelId: tile.modelId,
+                });
+            }
         }
         localStorage.setItem('tinyHabitsCity', JSON.stringify(data));
     }
@@ -455,18 +455,16 @@ class City {
         try {
             const data = JSON.parse(saved);
 
-            // First pass: place roads (they need to update each other)
-            for (const tile of data) {
-                if (tile.type === 'road') {
-                    await this.placeRoad(tile.x, tile.y);
-                }
-            }
+            // Sort by distance from center
+            data.sort((a, b) => {
+                const distA = Math.max(Math.abs(a.x), Math.abs(a.y));
+                const distB = Math.max(Math.abs(b.x), Math.abs(b.y));
+                return distA - distB;
+            });
 
-            // Second pass: place buildings
+            // Only load buildings - roads are already built
             for (const tile of data) {
-                if (tile.type === 'building') {
-                    await this.placeBuilding(tile.x, tile.y, tile.modelId);
-                }
+                await this.placeBuilding(tile.x, tile.y, tile.modelId);
             }
 
             return true;
