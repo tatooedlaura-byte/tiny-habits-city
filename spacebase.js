@@ -139,7 +139,7 @@ class SpaceBase {
         this.models = {};
         this.tileSize = 2; // Each tile is 2x2 units
         this.blockSize = 3; // Modules in 3x3 blocks
-        this.gridRadius = 12; // Base extends this many tiles from center
+        this.gridRadius = 6; // Base extends this many tiles from center (matches template)
         this.mixers = [];
         this.clock = new THREE.Clock();
         this.growthOrder = []; // Track order to grow base
@@ -290,8 +290,10 @@ class SpaceBase {
         console.log('SpaceBase initialized');
         this.loaded = true;
 
-        // Build the tunnel grid immediately
-        this.buildTunnelGrid();
+        // Only build tunnel grid if NOT using a template
+        if (spaceTemplate.length === 0) {
+            this.buildTunnelGrid();
+        }
     }
 
     // Build the complete tunnel grid upfront

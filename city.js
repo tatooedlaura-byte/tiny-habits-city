@@ -2,6 +2,131 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+// City template - pre-designed layout with city and forest assets
+const cityTemplate = [
+  { x: -5, y: -5, file: "Tree_2_E_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -4, y: -5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: -5, file: "building_B.gltf", path: "city", rotation: 0 },
+  { x: -2, y: -5, file: "building_D.gltf", path: "city", rotation: 0 },
+  { x: -1, y: -5, file: "Tree_4_A_Color1.gltf", path: "forest", rotation: 0 },
+  { x: 0, y: -5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: -5, file: "building_F.gltf", path: "city", rotation: 0 },
+  { x: 2, y: -5, file: "building_C.gltf", path: "city", rotation: 0 },
+  { x: 3, y: -5, file: "building_B.gltf", path: "city", rotation: 0 },
+  { x: 4, y: -5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: -5, file: "Tree_2_C_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -5, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -4, y: -4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: -3, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -2, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -1, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 0, y: -4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 1, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 2, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 3, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 4, y: -4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 5, y: -4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -5, y: -3, file: "building_B.gltf", path: "city", rotation: 90 },
+  { x: -4, y: -3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: -3, file: "building_D.gltf", path: "city", rotation: 180 },
+  { x: -2, y: -3, file: "building_H.gltf", path: "city", rotation: 180 },
+  { x: -1, y: -3, file: "building_C.gltf", path: "city", rotation: 180 },
+  { x: 0, y: -3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: -3, file: "building_F.gltf", path: "city", rotation: 180 },
+  { x: 2, y: -3, file: "building_B.gltf", path: "city", rotation: 180 },
+  { x: 3, y: -3, file: "building_D.gltf", path: "city", rotation: 180 },
+  { x: 4, y: -3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: -3, file: "building_E.gltf", path: "city", rotation: 270 },
+  { x: -5, y: -2, file: "building_D.gltf", path: "city", rotation: 90 },
+  { x: -4, y: -2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: -2, file: "building_H.gltf", path: "city", rotation: 270 },
+  { x: -2, y: -2, file: "Tree_3_A_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -1, y: -2, file: "building_D.gltf", path: "city", rotation: 90 },
+  { x: 0, y: -2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: -2, file: "building_C.gltf", path: "city", rotation: 270 },
+  { x: 2, y: -2, file: "Tree_4_A_Color1.gltf", path: "forest", rotation: 0 },
+  { x: 3, y: -2, file: "building_E.gltf", path: "city", rotation: 90 },
+  { x: 4, y: -2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: -2, file: "building_B.gltf", path: "city", rotation: 270 },
+  { x: -5, y: -1, file: "building_F.gltf", path: "city", rotation: 90 },
+  { x: -4, y: -1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: -1, file: "building_F.gltf", path: "city", rotation: 0 },
+  { x: -2, y: -1, file: "building_G.gltf", path: "city", rotation: 0 },
+  { x: -1, y: -1, file: "building_A.gltf", path: "city", rotation: 0 },
+  { x: 0, y: -1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: -1, file: "building_E.gltf", path: "city", rotation: 0 },
+  { x: 2, y: -1, file: "building_C.gltf", path: "city", rotation: 0 },
+  { x: 3, y: -1, file: "Tree_4_C_Color1.gltf", path: "forest", rotation: 0 },
+  { x: 4, y: -1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: -1, file: "building_A.gltf", path: "city", rotation: 270 },
+  { x: -5, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 0, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -2, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -1, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 0, y: 0, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 2, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 3, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 4, y: 0, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 0, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -5, y: 1, file: "building_C.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 1, file: "building_F.gltf", path: "city", rotation: 270 },
+  { x: -2, y: 1, file: "building_C.gltf", path: "city", rotation: 180 },
+  { x: -1, y: 1, file: "building_E.gltf", path: "city", rotation: 180 },
+  { x: 0, y: 1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 1, file: "building_H.gltf", path: "city", rotation: 180 },
+  { x: 2, y: 1, file: "building_D.gltf", path: "city", rotation: 180 },
+  { x: 3, y: 1, file: "building_G.gltf", path: "city", rotation: 180 },
+  { x: 4, y: 1, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 1, file: "building_F.gltf", path: "city", rotation: 270 },
+  { x: -5, y: 2, file: "building_G.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 2, file: "building_E.gltf", path: "city", rotation: 270 },
+  { x: -2, y: 2, file: "Tree_1_B_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -1, y: 2, file: "building_A.gltf", path: "city", rotation: 90 },
+  { x: 0, y: 2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 2, file: "building_E.gltf", path: "city", rotation: 270 },
+  { x: 2, y: 2, file: "Tree_1_A_Color1.gltf", path: "forest", rotation: 0 },
+  { x: 3, y: 2, file: "building_E.gltf", path: "city", rotation: 90 },
+  { x: 4, y: 2, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 2, file: "Grass_1_C_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -5, y: 3, file: "building_B.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 3, file: "building_G.gltf", path: "city", rotation: 0 },
+  { x: -2, y: 3, file: "building_D.gltf", path: "city", rotation: 0 },
+  { x: -1, y: 3, file: "building_C.gltf", path: "city", rotation: 90 },
+  { x: 0, y: 3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 3, file: "building_C.gltf", path: "city", rotation: 0 },
+  { x: 2, y: 3, file: "building_A.gltf", path: "city", rotation: 0 },
+  { x: 3, y: 3, file: "building_B.gltf", path: "city", rotation: 0 },
+  { x: 4, y: 3, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 3, file: "building_F.gltf", path: "city", rotation: 270 },
+  { x: -5, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -2, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -1, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 0, y: 4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 2, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 3, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: 4, y: 4, file: "road_junction.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 4, file: "road_straight.gltf", path: "city", rotation: 90 },
+  { x: -5, y: 5, file: "building_F.gltf", path: "city", rotation: 90 },
+  { x: -4, y: 5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: -3, y: 5, file: "building_C.gltf", path: "city", rotation: 180 },
+  { x: -2, y: 5, file: "Tree_2_B_Color1.gltf", path: "forest", rotation: 0 },
+  { x: -1, y: 5, file: "building_D.gltf", path: "city", rotation: 180 },
+  { x: 0, y: 5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 1, y: 5, file: "building_E.gltf", path: "city", rotation: 180 },
+  { x: 2, y: 5, file: "building_C.gltf", path: "city", rotation: 180 },
+  { x: 3, y: 5, file: "Tree_2_C_Color1.gltf", path: "forest", rotation: 0 },
+  { x: 4, y: 5, file: "road_straight.gltf", path: "city", rotation: 0 },
+  { x: 5, y: 5, file: "Tree_4_C_Color1.gltf", path: "forest", rotation: 0 },
+];
+
 // City class - builds a proper city with road grid and buildings
 class City {
     constructor(container) {
@@ -10,10 +135,11 @@ class City {
         this.models = {};
         this.tileSize = 2; // Each tile is 2x2 units
         this.blockSize = 3; // Buildings in 3x3 blocks
-        this.gridRadius = 12; // City extends this many tiles from center
+        this.gridRadius = 5; // City extends this many tiles from center (matches template)
         this.mixers = [];
         this.clock = new THREE.Clock();
         this.growthOrder = []; // Track order to grow city
+        this.templateIndex = 0; // Track which template item to place next
 
         this.init();
         this.loadModels();
@@ -62,6 +188,16 @@ class City {
         dirLight.shadow.camera.top = 30;
         dirLight.shadow.camera.bottom = -30;
         this.scene.add(dirLight);
+
+        // Ground plane - grass green base for the city
+        const groundSize = (this.gridRadius * 2 + 1) * this.tileSize + 4; // Slightly larger than grid
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a7c4e }); // Grass green
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        ground.receiveShadow = true;
+        this.scene.add(ground);
 
         window.addEventListener('resize', () => this.onResize());
         this.animate();
@@ -122,24 +258,12 @@ class City {
         console.log('City initialized');
         this.loaded = true;
 
-        // Build the road grid immediately
-        this.buildRoadGrid();
-    }
-
-    // Build the complete road grid upfront
-    async buildRoadGrid() {
-        const spacing = this.blockSize + 1; // 4
-
-        // Place roads in a grid pattern
-        for (let x = -this.gridRadius; x <= this.gridRadius; x++) {
-            for (let y = -this.gridRadius; y <= this.gridRadius; y++) {
-                if (this.isRoadPosition(x, y)) {
-                    await this.placeRoad(x, y);
-                }
-            }
-        }
-
-        console.log('Road grid complete');
+        // Sort template by distance from center for spiral growth effect
+        this.sortedTemplate = [...cityTemplate].sort((a, b) => {
+            const distA = Math.max(Math.abs(a.x), Math.abs(a.y));
+            const distB = Math.max(Math.abs(b.x), Math.abs(b.y));
+            return distA - distB;
+        });
     }
 
     // Compute spiral growth order from center
@@ -188,6 +312,40 @@ class City {
             return model;
         } catch (e) {
             console.warn(`Failed to load ${modelId}:`, e);
+            return null;
+        }
+    }
+
+    // Load model by file path (for template-based loading)
+    async loadModelByPath(file, assetPath = 'city') {
+        const cacheKey = `${assetPath}/${file}`;
+        if (this.models[cacheKey]) return this.models[cacheKey];
+
+        const fullPath = `assets/kaykit/${assetPath}/${file}`;
+
+        try {
+            const gltf = await this.loader.loadAsync(fullPath);
+            const model = gltf.scene;
+
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    // Only apply city texture to city assets
+                    if (assetPath === 'city') {
+                        child.material = new THREE.MeshStandardMaterial({
+                            map: this.sharedTexture,
+                            roughness: 0.8,
+                            metalness: 0.1,
+                        });
+                    }
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            this.models[cacheKey] = model;
+            return model;
+        } catch (e) {
+            console.warn(`Failed to load ${fullPath}:`, e);
             return null;
         }
     }
@@ -399,26 +557,58 @@ class City {
         return null;
     }
 
-    // Main grow function - only places buildings (roads are pre-built)
-    async grow() {
-        const pos = this.findNextGrowthPosition();
-        if (!pos) return null;
+    // Place a template item
+    async placeTemplateItem(item) {
+        const k = this.key(item.x, item.y);
+        if (this.grid.has(k)) return null;
 
-        // Skip road positions - they're already built
-        if (this.isRoadPosition(pos.x, pos.y)) {
-            // Find next non-road position
-            for (const p of this.growthOrder) {
-                const k = this.key(p.x, p.y);
-                if (!this.grid.has(k) && !this.isRoadPosition(p.x, p.y)) {
-                    const buildingId = this.pickBuilding(p.x, p.y);
-                    return await this.placeBuilding(p.x, p.y, buildingId);
-                }
-            }
-            return null;
+        const model = await this.loadModelByPath(item.file, item.path);
+        if (!model) return null;
+
+        const pos = this.worldPos(item.x, item.y);
+        const mesh = model.clone();
+        mesh.position.set(pos.x, 0, pos.z);
+        mesh.rotation.y = (item.rotation * Math.PI) / 180;
+        this.scene.add(mesh);
+
+        // Determine type from filename
+        const isRoad = item.file.includes('road_');
+        const isBuilding = item.file.includes('building_');
+        const type = isRoad ? 'road' : isBuilding ? 'building' : 'decoration';
+
+        this.grid.set(k, {
+            type,
+            file: item.file,
+            path: item.path,
+            rotation: item.rotation,
+            mesh,
+            x: item.x,
+            y: item.y
+        });
+
+        // Return a name for the toast
+        const name = item.file.replace('.gltf', '').replace(/_/g, ' ');
+        return { type, name };
+    }
+
+    // Main grow function - places items from template
+    async grow() {
+        if (this.templateIndex >= this.sortedTemplate.length) {
+            return null; // Template complete
         }
 
-        const buildingId = this.pickBuilding(pos.x, pos.y);
-        return await this.placeBuilding(pos.x, pos.y, buildingId);
+        // Find next unplaced template item
+        while (this.templateIndex < this.sortedTemplate.length) {
+            const item = this.sortedTemplate[this.templateIndex];
+            const k = this.key(item.x, item.y);
+            this.templateIndex++;
+
+            if (!this.grid.has(k)) {
+                return await this.placeTemplateItem(item);
+            }
+        }
+
+        return null;
     }
 
     getStats() {
@@ -434,16 +624,16 @@ class City {
     }
 
     save() {
-        // Only save buildings - roads are auto-generated
+        // Save all placed items with their file, path, and rotation
         const data = [];
         for (const [, tile] of this.grid) {
-            if (tile.type === 'building') {
-                data.push({
-                    x: tile.x,
-                    y: tile.y,
-                    modelId: tile.modelId,
-                });
-            }
+            data.push({
+                x: tile.x,
+                y: tile.y,
+                file: tile.file,
+                path: tile.path,
+                rotation: tile.rotation || 0,
+            });
         }
         localStorage.setItem('tinyHabitsCity', JSON.stringify(data));
     }
@@ -462,9 +652,24 @@ class City {
                 return distA - distB;
             });
 
-            // Only load buildings - roads are already built
-            for (const tile of data) {
-                await this.placeBuilding(tile.x, tile.y, tile.modelId);
+            // Load all saved items
+            for (const item of data) {
+                await this.placeTemplateItem({
+                    x: item.x,
+                    y: item.y,
+                    file: item.file,
+                    path: item.path,
+                    rotation: item.rotation || 0
+                });
+            }
+
+            // Update template index to skip already placed items
+            this.templateIndex = this.sortedTemplate.findIndex(t => {
+                const k = this.key(t.x, t.y);
+                return !this.grid.has(k);
+            });
+            if (this.templateIndex === -1) {
+                this.templateIndex = this.sortedTemplate.length;
             }
 
             return true;

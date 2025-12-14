@@ -766,6 +766,36 @@ function scheduleMidnightReset() {
     }, msUntilMidnight);
 }
 
+// Reset current world
+function resetCurrentWorld() {
+    const worldNames = {
+        kingdom: 'Kingdom',
+        city: 'City',
+        spacebase: 'Space Base',
+        dungeon: 'Dungeon'
+    };
+
+    if (!confirm(`Reset ${worldNames[currentWorld]}? This will clear all buildings in this world.`)) {
+        return;
+    }
+
+    // Clear localStorage for current world
+    const storageKeys = {
+        kingdom: 'tinyHabitsGarden',
+        city: 'tinyHabitsCity',
+        spacebase: 'tinyHabitsSpaceBase',
+        dungeon: 'tinyHabitsDungeon'
+    };
+
+    localStorage.removeItem(storageKeys[currentWorld]);
+
+    // Reload the page to reinitialize
+    location.reload();
+}
+
+// Set up reset button
+document.getElementById('reset-world-btn').addEventListener('click', resetCurrentWorld);
+
 // Utility
 function escapeHtml(text) {
     const div = document.createElement('div');

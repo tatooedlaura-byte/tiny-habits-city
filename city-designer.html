@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Designer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eaeaea;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Asset Palette */
+        .palette {
+            width: 280px;
+            background: #16213e;
+            padding: 16px;
+            overflow-y: auto;
+            border-right: 1px solid #2a3a55;
+        }
+        .palette h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .palette-section {
+            margin-bottom: 20px;
+        }
+        .palette-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .palette-section h3:hover {
+            color: #ff6b6b;
+        }
+        .palette-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .palette-item {
+            width: 70px;
+            height: 80px;
+            background: #1f2940;
+            border: 1px solid #2a3a55;
+            border-radius: 4px;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 9px;
+            text-align: center;
+            transition: all 0.2s;
+            padding-bottom: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .palette-item:hover {
+            background: #2a3a55;
+            border-color: #e94560;
+        }
+        .palette-item.dragging {
+            opacity: 0.5;
+        }
+        .palette-item .thumbnail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 70px;
+            height: 55px;
+            background: #0d0d1a;
+        }
+        .palette-item .thumbnail canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .palette-item .loading {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: #a0a0a0;
+        }
+        .palette-item .code {
+            font-weight: bold;
+            color: #4ade80;
+            position: relative;
+            z-index: 1;
+        }
+        .palette-item .name {
+            color: #a0a0a0;
+            font-size: 7px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 66px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Main Area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            padding: 12px 20px;
+            background: #16213e;
+            border-bottom: 1px solid #2a3a55;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 8px 16px;
+            background: #e94560;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .toolbar button:hover {
+            background: #ff6b6b;
+        }
+        .toolbar button.secondary {
+            background: #2a3a55;
+        }
+        .toolbar button.secondary:hover {
+            background: #3a4a65;
+        }
+        .toolbar span {
+            color: #a0a0a0;
+            font-size: 13px;
+        }
+
+        /* Grid Area */
+        .grid-container {
+            flex: 1;
+            overflow: auto;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .grid {
+            display: grid;
+            gap: 2px;
+            background: #0d0d1a;
+            padding: 2px;
+            border-radius: 8px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background: #1f2940;
+            border: 1px dashed #2a3a55;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            position: relative;
+        }
+        .cell.drag-over {
+            background: #2a4a55;
+            border-color: #4ade80;
+        }
+        .cell.has-item {
+            background: #2a3a55;
+            border: 1px solid #4ade80;
+            cursor: pointer;
+        }
+        .cell.has-item:hover {
+            background: #3a4a65;
+        }
+        .cell .item-code {
+            font-weight: bold;
+            color: #4ade80;
+            font-size: 12px;
+        }
+        .cell .item-name {
+            color: #a0a0a0;
+            font-size: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 56px;
+        }
+        .cell .rotation {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            color: #e94560;
+        }
+        .cell.selected {
+            border: 2px solid #e94560;
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            width: 350px;
+            background: #16213e;
+            border-left: 1px solid #2a3a55;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        .preview-panel h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        #preview-canvas {
+            flex: 1;
+            background: #0d0d1a;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .output-section {
+            margin-top: 16px;
+        }
+        .output-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+        }
+        #output {
+            background: #0d0d1a;
+            border: 1px solid #2a3a55;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #4ade80;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Instructions */
+        .instructions {
+            padding: 8px 12px;
+            background: #1f2940;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .instructions strong {
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="palette">
+        <h2>City Assets</h2>
+        <input type="text" id="search" placeholder="Search assets..." style="width: 100%; padding: 8px; margin-bottom: 12px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea;">
+        <div id="palette-items"></div>
+    </div>
+
+    <div class="main">
+        <div class="toolbar">
+            <button onclick="clearGrid()">Clear Grid</button>
+            <button class="secondary" onclick="exportLayout()">Export Layout</button>
+            <span>Grid: <input type="number" id="grid-size" value="11" min="3" max="25" style="width: 50px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea; padding: 4px;">
+            <button class="secondary" onclick="resizeGrid()">Resize</button></span>
+            <span style="margin-left: auto;">Click placed item to rotate (R) or delete (X)</span>
+        </div>
+
+        <div class="grid-container">
+            <div class="grid" id="grid"></div>
+        </div>
+    </div>
+
+    <div class="preview-panel">
+        <h2>3D Preview</h2>
+        <div class="instructions">
+            <strong>Drag</strong> assets from left panel onto grid.<br>
+            <strong>Click</strong> placed item to select, then <strong>R</strong> to rotate, <strong>X/Delete</strong> to remove.
+        </div>
+        <canvas id="preview-canvas"></canvas>
+        <div class="output-section">
+            <h3>City Template Code</h3>
+            <div id="output">// Place items to generate code</div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // All city assets (path: assets/kaykit/city/)
+        const assets = [
+            // Roads
+            { code: 'RS', name: 'road_straight', file: 'road_straight.gltf', category: 'Roads', path: 'city' },
+            { code: 'RC', name: 'road_corner', file: 'road_corner.gltf', category: 'Roads', path: 'city' },
+            { code: 'RV', name: 'road_corner_curved', file: 'road_corner_curved.gltf', category: 'Roads', path: 'city' },
+            { code: 'RT', name: 'road_tsplit', file: 'road_tsplit.gltf', category: 'Roads', path: 'city' },
+            { code: 'RJ', name: 'road_junction', file: 'road_junction.gltf', category: 'Roads', path: 'city' },
+            { code: 'RX', name: 'road_crossing', file: 'road_straight_crossing.gltf', category: 'Roads', path: 'city' },
+
+            // Buildings
+            { code: 'BA', name: 'building_A', file: 'building_A.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BB', name: 'building_B', file: 'building_B.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BC', name: 'building_C', file: 'building_C.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BD', name: 'building_D', file: 'building_D.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BE', name: 'building_E', file: 'building_E.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BF', name: 'building_F', file: 'building_F.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BG', name: 'building_G', file: 'building_G.gltf', category: 'Buildings', path: 'city' },
+            { code: 'BH', name: 'building_H', file: 'building_H.gltf', category: 'Buildings', path: 'city' },
+
+            // Vehicles
+            { code: 'CS', name: 'car_sedan', file: 'car_sedan.gltf', category: 'Vehicles', path: 'city' },
+            { code: 'CT', name: 'car_taxi', file: 'car_taxi.gltf', category: 'Vehicles', path: 'city' },
+            { code: 'CP', name: 'car_police', file: 'car_police.gltf', category: 'Vehicles', path: 'city' },
+            { code: 'CH', name: 'car_hatchback', file: 'car_hatchback.gltf', category: 'Vehicles', path: 'city' },
+            { code: 'CW', name: 'car_wagon', file: 'car_stationwagon.gltf', category: 'Vehicles', path: 'city' },
+
+            // Street Props
+            { code: 'SL', name: 'streetlight', file: 'streetlight.gltf', category: 'City Props', path: 'city' },
+            { code: 'TA', name: 'traffic_A', file: 'trafficlight_A.gltf', category: 'City Props', path: 'city' },
+            { code: 'TB', name: 'traffic_B', file: 'trafficlight_B.gltf', category: 'City Props', path: 'city' },
+            { code: 'TC', name: 'traffic_C', file: 'trafficlight_C.gltf', category: 'City Props', path: 'city' },
+            { code: 'FH', name: 'firehydrant', file: 'firehydrant.gltf', category: 'City Props', path: 'city' },
+            { code: 'BN', name: 'bench', file: 'bench.gltf', category: 'City Props', path: 'city' },
+            { code: 'WT', name: 'watertower', file: 'watertower.gltf', category: 'City Props', path: 'city' },
+            { code: 'T1', name: 'trash_A', file: 'trash_A.gltf', category: 'City Props', path: 'city' },
+            { code: 'T2', name: 'trash_B', file: 'trash_B.gltf', category: 'City Props', path: 'city' },
+            { code: 'DU', name: 'dumpster', file: 'dumpster.gltf', category: 'City Props', path: 'city' },
+            { code: 'XA', name: 'box_A', file: 'box_A.gltf', category: 'City Props', path: 'city' },
+            { code: 'XB', name: 'box_B', file: 'box_B.gltf', category: 'City Props', path: 'city' },
+            { code: 'CB', name: 'city_bush', file: 'bush.gltf', category: 'City Props', path: 'city' },
+
+            // Forest Trees
+            { code: 'T1A', name: 'tree_1A', file: 'Tree_1_A_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T1B', name: 'tree_1B', file: 'Tree_1_B_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T1C', name: 'tree_1C', file: 'Tree_1_C_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T2A', name: 'tree_2A', file: 'Tree_2_A_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T2B', name: 'tree_2B', file: 'Tree_2_B_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T2C', name: 'tree_2C', file: 'Tree_2_C_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T2D', name: 'tree_2D', file: 'Tree_2_D_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T2E', name: 'tree_2E', file: 'Tree_2_E_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T3A', name: 'tree_3A', file: 'Tree_3_A_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T3B', name: 'tree_3B', file: 'Tree_3_B_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T3C', name: 'tree_3C', file: 'Tree_3_C_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T4A', name: 'tree_4A', file: 'Tree_4_A_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T4B', name: 'tree_4B', file: 'Tree_4_B_Color1.gltf', category: 'Trees', path: 'forest' },
+            { code: 'T4C', name: 'tree_4C', file: 'Tree_4_C_Color1.gltf', category: 'Trees', path: 'forest' },
+
+            // Bare Trees
+            { code: 'TB1A', name: 'bare_1A', file: 'Tree_Bare_1_A_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+            { code: 'TB1B', name: 'bare_1B', file: 'Tree_Bare_1_B_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+            { code: 'TB1C', name: 'bare_1C', file: 'Tree_Bare_1_C_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+            { code: 'TB2A', name: 'bare_2A', file: 'Tree_Bare_2_A_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+            { code: 'TB2B', name: 'bare_2B', file: 'Tree_Bare_2_B_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+            { code: 'TB2C', name: 'bare_2C', file: 'Tree_Bare_2_C_Color1.gltf', category: 'Bare Trees', path: 'forest' },
+
+            // Forest Bushes
+            { code: 'B1A', name: 'bush_1A', file: 'Bush_1_A_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B1B', name: 'bush_1B', file: 'Bush_1_B_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B1C', name: 'bush_1C', file: 'Bush_1_C_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B1D', name: 'bush_1D', file: 'Bush_1_D_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B2A', name: 'bush_2A', file: 'Bush_2_A_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B2B', name: 'bush_2B', file: 'Bush_2_B_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B2C', name: 'bush_2C', file: 'Bush_2_C_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B3A', name: 'bush_3A', file: 'Bush_3_A_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B3B', name: 'bush_3B', file: 'Bush_3_B_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B4A', name: 'bush_4A', file: 'Bush_4_A_Color1.gltf', category: 'Bushes', path: 'forest' },
+            { code: 'B4B', name: 'bush_4B', file: 'Bush_4_B_Color1.gltf', category: 'Bushes', path: 'forest' },
+
+            // Forest Rocks
+            { code: 'R1A', name: 'rock_1A', file: 'Rock_1_A_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R1B', name: 'rock_1B', file: 'Rock_1_B_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R1C', name: 'rock_1C', file: 'Rock_1_C_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R1D', name: 'rock_1D', file: 'Rock_1_D_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R2A', name: 'rock_2A', file: 'Rock_2_A_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R2B', name: 'rock_2B', file: 'Rock_2_B_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R3A', name: 'rock_3A', file: 'Rock_3_A_Color1.gltf', category: 'Rocks', path: 'forest' },
+            { code: 'R3B', name: 'rock_3B', file: 'Rock_3_B_Color1.gltf', category: 'Rocks', path: 'forest' },
+
+            // Grass
+            { code: 'G1A', name: 'grass_1A', file: 'Grass_1_A_Color1.gltf', category: 'Grass', path: 'forest' },
+            { code: 'G1B', name: 'grass_1B', file: 'Grass_1_B_Color1.gltf', category: 'Grass', path: 'forest' },
+            { code: 'G1C', name: 'grass_1C', file: 'Grass_1_C_Color1.gltf', category: 'Grass', path: 'forest' },
+            { code: 'G2A', name: 'grass_2A', file: 'Grass_2_A_Color1.gltf', category: 'Grass', path: 'forest' },
+            { code: 'G2B', name: 'grass_2B', file: 'Grass_2_B_Color1.gltf', category: 'Grass', path: 'forest' },
+        ];
+
+        let gridSize = 11; // Centered grid from -5 to +5
+        let gridData = [];
+        let selectedCell = null;
+        let draggedAsset = null;
+
+        // Three.js setup
+        let scene, camera, renderer, controls;
+        const loader = new GLTFLoader();
+        const loadedModels = new Map();
+
+        function initThree() {
+            const canvas = document.getElementById('preview-canvas');
+            const rect = canvas.getBoundingClientRect();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Sky blue
+
+            camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 1000);
+            camera.position.set(20, 20, 20);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(rect.width, rect.height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir.position.set(10, 20, 10);
+            scene.add(dir);
+
+            // Ground plane (matches grid: gridSize * tileSize)
+            const tileSize = 2;
+            const groundSize = gridSize * tileSize;
+            const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x4a7c4e }); // Grass green
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.01;
+            scene.add(ground);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function buildPalette() {
+            const container = document.getElementById('palette-items');
+            const categories = {};
+
+            assets.forEach(asset => {
+                if (!categories[asset.category]) {
+                    categories[asset.category] = [];
+                }
+                categories[asset.category].push(asset);
+            });
+
+            for (const [category, items] of Object.entries(categories)) {
+                const section = document.createElement('div');
+                section.className = 'palette-section';
+                section.innerHTML = `<h3>${category} (${items.length})</h3>`;
+
+                const itemsDiv = document.createElement('div');
+                itemsDiv.className = 'palette-items';
+
+                items.forEach(asset => {
+                    const item = document.createElement('div');
+                    item.className = 'palette-item';
+                    item.draggable = true;
+                    item.dataset.code = asset.code;
+                    item.dataset.name = asset.name;
+                    item.dataset.file = asset.file;
+                    item.innerHTML = `
+                        <div class="thumbnail" data-file="${asset.file}" data-path="${asset.path}">
+                            <span class="loading">...</span>
+                        </div>
+                        <span class="code">${asset.code}</span>
+                        <span class="name">${asset.name}</span>
+                    `;
+
+                    item.addEventListener('dragstart', (e) => {
+                        draggedAsset = asset;
+                        item.classList.add('dragging');
+                    });
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
+
+                    itemsDiv.appendChild(item);
+                });
+
+                section.appendChild(itemsDiv);
+                container.appendChild(section);
+            }
+        }
+
+        function buildGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
+            gridData = [];
+
+            for (let y = 0; y < gridSize; y++) {
+                const row = [];
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+
+                    cell.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        cell.classList.add('drag-over');
+                    });
+                    cell.addEventListener('dragleave', () => {
+                        cell.classList.remove('drag-over');
+                    });
+                    cell.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        cell.classList.remove('drag-over');
+                        if (draggedAsset) {
+                            placeItem(x, y, draggedAsset);
+                        }
+                    });
+                    cell.addEventListener('click', () => {
+                        selectCell(x, y, cell);
+                    });
+
+                    grid.appendChild(cell);
+                    row.push({ x, y, item: null, rotation: 0 });
+                }
+                gridData.push(row);
+            }
+        }
+
+        function placeItem(x, y, asset) {
+            const cellData = gridData[y][x];
+            cellData.item = asset;
+            cellData.rotation = 0;
+            updateCellDisplay(x, y);
+            updatePreview();
+            updateOutput();
+        }
+
+        function updateCellDisplay(x, y) {
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            const cellData = gridData[y][x];
+
+            if (cellData.item) {
+                cell.classList.add('has-item');
+                cell.innerHTML = `
+                    <span class="item-code">${cellData.item.code}</span>
+                    <span class="item-name">${cellData.item.name}</span>
+                    ${cellData.rotation > 0 ? `<span class="rotation">${cellData.rotation}°</span>` : ''}
+                `;
+            } else {
+                cell.classList.remove('has-item');
+                cell.innerHTML = '';
+            }
+        }
+
+        function selectCell(x, y, cell) {
+            // Deselect previous
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+
+            if (gridData[y][x].item) {
+                cell.classList.add('selected');
+                selectedCell = { x, y };
+            } else {
+                selectedCell = null;
+            }
+        }
+
+        async function updatePreview() {
+            // Clear existing items (keep lights and ground)
+            const toRemove = [];
+            scene.traverse(obj => {
+                if (obj.userData.isPlacedItem) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach(obj => scene.remove(obj));
+
+            // Add grid items - match the grid exactly
+            const tileSize = 2;
+            const halfGrid = Math.floor(gridSize / 2);
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    if (cellData.item) {
+                        try {
+                            const model = await loadModel(cellData.item.file, cellData.item.path || 'city');
+                            if (model) {
+                                const clone = model.clone();
+                                clone.position.set(
+                                    (x - halfGrid) * tileSize,
+                                    0,
+                                    (y - halfGrid) * tileSize
+                                );
+                                clone.rotation.y = (cellData.rotation * Math.PI) / 180;
+                                clone.userData.isPlacedItem = true;
+                                scene.add(clone);
+                            }
+                        } catch (e) {
+                            console.log('Could not load:', cellData.item.file);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function loadModel(filename, assetPath = 'city') {
+            const cacheKey = `${assetPath}/${filename}`;
+            if (loadedModels.has(cacheKey)) {
+                return loadedModels.get(cacheKey);
+            }
+
+            return new Promise((resolve) => {
+                loader.load(
+                    `assets/kaykit/${assetPath}/${filename}`,
+                    (gltf) => {
+                        const model = gltf.scene;
+                        model.scale.setScalar(1);
+                        loadedModels.set(cacheKey, model);
+                        resolve(model);
+                    },
+                    undefined,
+                    () => {
+                        loadedModels.set(cacheKey, null);
+                        resolve(null);
+                    }
+                );
+            });
+        }
+
+        function updateOutput() {
+            const items = [];
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    if (cellData.item) {
+                        items.push({
+                            x: x - Math.floor(gridSize / 2),
+                            y: y - Math.floor(gridSize / 2),
+                            file: cellData.item.file,
+                            path: cellData.item.path || 'city',
+                            rotation: cellData.rotation
+                        });
+                    }
+                }
+            }
+
+            const output = document.getElementById('output');
+            if (items.length === 0) {
+                output.textContent = '// Place items to generate code';
+            } else {
+                output.textContent = `const cityTemplate = ${JSON.stringify(items, null, 2)};`;
+            }
+        }
+
+        window.clearGrid = function() {
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    gridData[y][x].item = null;
+                    gridData[y][x].rotation = 0;
+                    updateCellDisplay(x, y);
+                }
+            }
+            updatePreview();
+            updateOutput();
+        };
+
+        window.exportLayout = function() {
+            const output = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Layout code copied to clipboard!');
+            });
+        };
+
+        window.resizeGrid = function() {
+            gridSize = parseInt(document.getElementById('grid-size').value) || 11;
+            gridSize = Math.max(3, Math.min(25, gridSize));
+            buildGrid();
+            updatePreview();
+            updateOutput();
+        };
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (!selectedCell) return;
+            const { x, y } = selectedCell;
+
+            if (e.key === 'r' || e.key === 'R') {
+                gridData[y][x].rotation = (gridData[y][x].rotation + 90) % 360;
+                updateCellDisplay(x, y);
+                updatePreview();
+                updateOutput();
+            } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete' || e.key === 'Backspace') {
+                gridData[y][x].item = null;
+                gridData[y][x].rotation = 0;
+                updateCellDisplay(x, y);
+                selectedCell = null;
+                updatePreview();
+                updateOutput();
+            }
+        });
+
+        // Search
+        document.getElementById('search').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.palette-item').forEach(item => {
+                const code = item.dataset.code.toLowerCase();
+                const name = item.dataset.name.toLowerCase();
+                item.style.display = (code.includes(term) || name.includes(term)) ? '' : 'none';
+            });
+        });
+
+        // Thumbnail rendering system
+        const thumbnailCache = new Map();
+
+        async function renderThumbnails() {
+            const thumbnails = document.querySelectorAll('.thumbnail[data-file]');
+
+            // Create a shared renderer for thumbnails
+            const thumbRenderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true
+            });
+            thumbRenderer.setSize(140, 110);
+            thumbRenderer.setPixelRatio(1);
+
+            const thumbScene = new THREE.Scene();
+            thumbScene.background = new THREE.Color(0x0d0d1a);
+
+            const thumbCamera = new THREE.PerspectiveCamera(40, 140/110, 0.1, 100);
+
+            // Lighting for thumbnails
+            const thumbAmbient = new THREE.AmbientLight(0xffffff, 0.7);
+            thumbScene.add(thumbAmbient);
+            const thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
+            thumbDir.position.set(3, 5, 4);
+            thumbScene.add(thumbDir);
+
+            for (const thumb of thumbnails) {
+                const file = thumb.dataset.file;
+                const assetPath = thumb.dataset.path || 'city';
+                const cacheKey = `${assetPath}/${file}`;
+
+                // Check cache first
+                if (thumbnailCache.has(cacheKey)) {
+                    thumb.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = thumbnailCache.get(cacheKey);
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'contain';
+                    thumb.appendChild(img);
+                    continue;
+                }
+
+                try {
+                    const model = await loadModel(file, assetPath);
+                    if (model) {
+                        // Clear previous models from thumb scene
+                        const toRemove = [];
+                        thumbScene.traverse(obj => {
+                            if (obj.userData.isThumbModel) toRemove.push(obj);
+                        });
+                        toRemove.forEach(obj => thumbScene.remove(obj));
+
+                        // Clone and add model
+                        const clone = model.clone();
+                        clone.userData.isThumbModel = true;
+
+                        // Calculate bounding box to center and scale
+                        const box = new THREE.Box3().setFromObject(clone);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+
+                        // Center the model
+                        clone.position.sub(center);
+
+                        // Position camera based on size
+                        const distance = maxDim * 2.2;
+                        thumbCamera.position.set(distance * 0.7, distance * 0.5, distance * 0.7);
+                        thumbCamera.lookAt(0, 0, 0);
+
+                        thumbScene.add(clone);
+
+                        // Render
+                        thumbRenderer.render(thumbScene, thumbCamera);
+
+                        // Get image data
+                        const dataUrl = thumbRenderer.domElement.toDataURL('image/png');
+                        thumbnailCache.set(cacheKey, dataUrl);
+
+                        // Update thumbnail element
+                        thumb.innerHTML = '';
+                        const img = document.createElement('img');
+                        img.src = dataUrl;
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.objectFit = 'contain';
+                        thumb.appendChild(img);
+
+                        // Clean up
+                        thumbScene.remove(clone);
+                    } else {
+                        thumb.innerHTML = '<span class="loading">N/A</span>';
+                    }
+                } catch (e) {
+                    thumb.innerHTML = '<span class="loading">ERR</span>';
+                }
+            }
+
+            // Dispose of thumbnail renderer
+            thumbRenderer.dispose();
+        }
+
+        // Pre-place road grid pattern
+        function placeRoadGrid() {
+            const halfGrid = Math.floor(gridSize / 2);
+            const roadStraight = assets.find(a => a.code === 'RS');
+            const roadCorner = assets.find(a => a.code === 'RC');
+            const roadTsplit = assets.find(a => a.code === 'RT');
+            const roadJunction = assets.find(a => a.code === 'RJ');
+
+            // Place roads in a grid pattern (every 4 cells)
+            const spacing = 4;
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const isRoadX = (x % spacing === halfGrid % spacing);
+                    const isRoadY = (y % spacing === halfGrid % spacing);
+
+                    if (isRoadX && isRoadY) {
+                        // Junction
+                        gridData[y][x].item = roadJunction;
+                        gridData[y][x].rotation = 0;
+                    } else if (isRoadX) {
+                        // Vertical road
+                        gridData[y][x].item = roadStraight;
+                        gridData[y][x].rotation = 0;
+                    } else if (isRoadY) {
+                        // Horizontal road
+                        gridData[y][x].item = roadStraight;
+                        gridData[y][x].rotation = 90;
+                    }
+
+                    updateCellDisplay(x, y);
+                }
+            }
+
+            updatePreview();
+            updateOutput();
+        }
+
+        // Initialize
+        buildPalette();
+        buildGrid();
+        initThree();
+        placeRoadGrid(); // Pre-place roads
+
+        // Render thumbnails after a short delay to let page settle
+        setTimeout(renderThumbnails, 500);
+    </script>
+</body>
+</html>
