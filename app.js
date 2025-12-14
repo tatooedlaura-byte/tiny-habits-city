@@ -5,12 +5,16 @@
 
 let kingdom;
 let city;
-let currentWorld = 'kingdom'; // 'kingdom' or 'city'
+let spacebase;
+let dungeon;
+let currentWorld = 'kingdom'; // 'kingdom', 'city', 'spacebase', or 'dungeon'
 let customHabits = [];      // User-added custom habits
 let completedToday = {};    // { habitName: completionCount }
 let totalCompletions = {};  // { habitName: totalCount }
 
 const CITY_UNLOCK_TILES = 50; // Tiles needed to unlock city
+const SPACEBASE_UNLOCK_TILES = 100; // Tiles needed to unlock space base
+const DUNGEON_UNLOCK_TILES = 150; // Tiles needed to unlock dungeon
 
 // Encouraging messages for different events
 const MESSAGES = {
@@ -305,16 +309,16 @@ async function init() {
         localStorage.setItem('tinyHabitsVersion', 'v10');
     }
 
-    // Wait for both classes to be available
+    // Wait for all classes to be available
     await new Promise(resolve => {
         const check = () => {
-            if (window.Kingdom && window.City) resolve();
+            if (window.Kingdom && window.City && window.SpaceBase && window.Dungeon) resolve();
             else setTimeout(check, 50);
         };
         check();
     });
 
-    // Initialize kingdom
+    // Initialize kingdom first (always load as base)
     const container = document.getElementById('kingdom-container');
     kingdom = new Kingdom(container);
 
@@ -331,13 +335,18 @@ async function init() {
     loadData();
     await kingdom.load();
 
-    // Check if city is unlocked
-    currentWorld = localStorage.getItem('tinyHabitsCurrentWorld') || 'kingdom';
+    // Check saved world preference
+    const savedWorld = localStorage.getItem('tinyHabitsCurrentWorld') || 'kingdom';
+    currentWorld = 'kingdom'; // Start with kingdom, then switch if needed
     updateWorldSelector();
 
-    // If starting on city, switch to it
-    if (currentWorld === 'city' && isCityUnlocked()) {
+    // Switch to saved world if different and unlocked
+    if (savedWorld === 'city' && isCityUnlocked()) {
         await switchWorld('city');
+    } else if (savedWorld === 'spacebase' && isSpacebaseUnlocked()) {
+        await switchWorld('spacebase');
+    } else if (savedWorld === 'dungeon' && isDungeonUnlocked()) {
+        await switchWorld('dungeon');
     }
 
     // Render habits
@@ -358,77 +367,128 @@ function isCityUnlocked() {
     return stats.tiles >= CITY_UNLOCK_TILES;
 }
 
+function isSpacebaseUnlocked() {
+    return true; // TODO: remove this after testing
+    if (!kingdom) return false;
+    const stats = kingdom.getStats();
+    return stats.tiles >= SPACEBASE_UNLOCK_TILES;
+}
+
+function isDungeonUnlocked() {
+    return true; // TODO: remove this after testing
+    if (!kingdom) return false;
+    const stats = kingdom.getStats();
+    return stats.tiles >= DUNGEON_UNLOCK_TILES;
+}
+
 function updateWorldSelector() {
     const kingdomBtn = document.querySelector('[data-world="kingdom"]');
     const cityBtn = document.querySelector('[data-world="city"]');
+    const spacebaseBtn = document.querySelector('[data-world="spacebase"]');
+    const dungeonBtn = document.querySelector('[data-world="dungeon"]');
     const subtitle = document.getElementById('world-subtitle');
 
     // Update active state
     kingdomBtn.classList.toggle('active', currentWorld === 'kingdom');
     cityBtn.classList.toggle('active', currentWorld === 'city');
+    spacebaseBtn.classList.toggle('active', currentWorld === 'spacebase');
+    dungeonBtn.classList.toggle('active', currentWorld === 'dungeon');
 
-    // Update lock state
-    const unlocked = isCityUnlocked();
-    cityBtn.classList.toggle('locked', !unlocked);
+    // Update lock states
+    const cityUnlocked = isCityUnlocked();
+    const spacebaseUnlocked = isSpacebaseUnlocked();
+    const dungeonUnlocked = isDungeonUnlocked();
 
-    if (unlocked) {
+    cityBtn.classList.toggle('locked', !cityUnlocked);
+    spacebaseBtn.classList.toggle('locked', !spacebaseUnlocked);
+    dungeonBtn.classList.toggle('locked', !dungeonUnlocked);
+
+    const stats = kingdom ? kingdom.getStats() : { tiles: 0 };
+
+    if (cityUnlocked) {
         cityBtn.title = 'Modern City';
     } else {
-        const stats = kingdom.getStats();
         cityBtn.title = `Modern City (${stats.tiles}/${CITY_UNLOCK_TILES} tiles to unlock)`;
     }
 
-    // Update subtitle
-    if (currentWorld === 'kingdom') {
-        subtitle.textContent = 'Build your kingdom, one habit at a time';
+    if (spacebaseUnlocked) {
+        spacebaseBtn.title = 'Space Base';
     } else {
-        subtitle.textContent = 'Build your city, one habit at a time';
+        spacebaseBtn.title = `Space Base (${stats.tiles}/${SPACEBASE_UNLOCK_TILES} tiles to unlock)`;
     }
+
+    if (dungeonUnlocked) {
+        dungeonBtn.title = 'Dungeon';
+    } else {
+        dungeonBtn.title = `Dungeon (${stats.tiles}/${DUNGEON_UNLOCK_TILES} tiles to unlock)`;
+    }
+
+    // Update subtitle
+    const subtitles = {
+        kingdom: 'Build your kingdom, one habit at a time',
+        city: 'Build your city, one habit at a time',
+        spacebase: 'Build your space colony, one habit at a time',
+        dungeon: 'Build your dungeon, one habit at a time'
+    };
+    subtitle.textContent = subtitles[currentWorld] || subtitles.kingdom;
 }
 
 async function switchWorld(worldName) {
     if (worldName === currentWorld) return;
+
+    // Check unlock requirements
     if (worldName === 'city' && !isCityUnlocked()) {
         showToast(`Build ${CITY_UNLOCK_TILES} tiles in the Kingdom to unlock the City!`);
+        return;
+    }
+    if (worldName === 'spacebase' && !isSpacebaseUnlocked()) {
+        showToast(`Build ${SPACEBASE_UNLOCK_TILES} tiles in the Kingdom to unlock the Space Base!`);
+        return;
+    }
+    if (worldName === 'dungeon' && !isDungeonUnlocked()) {
+        showToast(`Build ${DUNGEON_UNLOCK_TILES} tiles in the Kingdom to unlock the Dungeon!`);
         return;
     }
 
     const container = document.getElementById('kingdom-container');
 
     // Clean up current world
-    if (currentWorld === 'kingdom' && kingdom) {
-        kingdom.save();
-        container.innerHTML = '';
-    } else if (currentWorld === 'city' && city) {
-        city.save();
+    const worlds = { kingdom, city, spacebase, dungeon };
+    if (worlds[currentWorld]) {
+        worlds[currentWorld].save();
         container.innerHTML = '';
     }
 
     currentWorld = worldName;
     localStorage.setItem('tinyHabitsCurrentWorld', currentWorld);
 
+    const waitForLoad = (world) => new Promise(resolve => {
+        const check = () => {
+            if (world.loaded) resolve();
+            else setTimeout(check, 50);
+        };
+        check();
+    });
+
     if (worldName === 'city') {
-        // Initialize city if not already
         city = new City(container);
-        await new Promise(resolve => {
-            const check = () => {
-                if (city.loaded) resolve();
-                else setTimeout(check, 50);
-            };
-            check();
-        });
+        await waitForLoad(city);
         await city.load();
         showToast('Welcome to the City! Keep building your habits.');
+    } else if (worldName === 'spacebase') {
+        spacebase = new SpaceBase(container);
+        await waitForLoad(spacebase);
+        await spacebase.load();
+        showToast('Welcome to the Space Base! Explore the cosmos.');
+    } else if (worldName === 'dungeon') {
+        dungeon = new Dungeon(container);
+        await waitForLoad(dungeon);
+        await dungeon.load();
+        showToast('Welcome to the Dungeon! Discover ancient secrets.');
     } else {
-        // Switch back to kingdom
+        // Switch to kingdom
         kingdom = new Kingdom(container);
-        await new Promise(resolve => {
-            const check = () => {
-                if (kingdom.loaded) resolve();
-                else setTimeout(check, 50);
-            };
-            check();
-        });
+        await waitForLoad(kingdom);
         await kingdom.load();
         showToast('Welcome back to the Kingdom!');
     }
@@ -493,14 +553,10 @@ async function toggleHabit(habitName) {
         // Check if city was locked before this grow
         const wasLocked = currentWorld === 'kingdom' && !isCityUnlocked();
 
-        // Grow the current world
-        const world = currentWorld === 'city' ? city : kingdom;
+        // Grow the current world - one building per habit completion
+        const worlds = { kingdom, city, spacebase, dungeon };
+        const world = worlds[currentWorld];
         const result = await world.grow();
-
-        // Add extra building every 2nd completion
-        if (totalCompletions[habitName] % 2 === 0) {
-            await world.grow();
-        }
 
         // Check if ALL habits are now complete
         const totalHabits = customHabits.length + PRESET_HABITS.length;
@@ -591,11 +647,11 @@ function renderHabits() {
                 ${habits.map(habit => {
                     const isCompleted = completedToday[habit.name];
                     return `<button class="habit-chip ${isCompleted ? 'completed' : ''}"
-                        data-habit="${escapeHtml(habit.name)}"
+                        data-habit="${escapeAttr(habit.name)}"
                         ${habit.isCustom ? 'data-custom="true"' : ''}>
                         <span class="habit-check">${isCompleted ? '✓' : ''}</span>
                         <span class="habit-name">${escapeHtml(habit.name)}</span>
-                        ${habit.isCustom ? `<span class="habit-delete" data-delete="${escapeHtml(habit.name)}">&times;</span>` : ''}
+                        ${habit.isCustom ? `<span class="habit-delete" data-delete="${escapeAttr(habit.name)}">&times;</span>` : ''}
                     </button>`;
                 }).join('')}
             </div>
@@ -630,7 +686,8 @@ function renderHabits() {
 }
 
 function updateStats() {
-    const world = currentWorld === 'city' ? city : kingdom;
+    const worlds = { kingdom, city, spacebase, dungeon };
+    const world = worlds[currentWorld];
     if (!world) return;
     const stats = world.getStats();
     buildingsCount.textContent = stats.buildings;
@@ -714,6 +771,15 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function escapeAttr(text) {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 // Start the app

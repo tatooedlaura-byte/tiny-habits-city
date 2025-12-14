@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Room Designer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eaeaea;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Asset Palette */
+        .palette {
+            width: 280px;
+            background: #16213e;
+            padding: 16px;
+            overflow-y: auto;
+            border-right: 1px solid #2a3a55;
+        }
+        .palette h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .palette-section {
+            margin-bottom: 20px;
+        }
+        .palette-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .palette-section h3:hover {
+            color: #ff6b6b;
+        }
+        .palette-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .palette-item {
+            width: 70px;
+            height: 80px;
+            background: #1f2940;
+            border: 1px solid #2a3a55;
+            border-radius: 4px;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 9px;
+            text-align: center;
+            transition: all 0.2s;
+            padding-bottom: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .palette-item:hover {
+            background: #2a3a55;
+            border-color: #e94560;
+        }
+        .palette-item.dragging {
+            opacity: 0.5;
+        }
+        .palette-item .thumbnail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 70px;
+            height: 55px;
+            background: #0d0d1a;
+        }
+        .palette-item .thumbnail canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .palette-item .loading {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: #a0a0a0;
+        }
+        .palette-item .code {
+            font-weight: bold;
+            color: #4ade80;
+            position: relative;
+            z-index: 1;
+        }
+        .palette-item .name {
+            color: #a0a0a0;
+            font-size: 7px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 66px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Main Area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            padding: 12px 20px;
+            background: #16213e;
+            border-bottom: 1px solid #2a3a55;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 8px 16px;
+            background: #e94560;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .toolbar button:hover {
+            background: #ff6b6b;
+        }
+        .toolbar button.secondary {
+            background: #2a3a55;
+        }
+        .toolbar button.secondary:hover {
+            background: #3a4a65;
+        }
+        .toolbar span {
+            color: #a0a0a0;
+            font-size: 13px;
+        }
+
+        /* Grid Area */
+        .grid-container {
+            flex: 1;
+            overflow: auto;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .grid {
+            display: grid;
+            gap: 2px;
+            background: #0d0d1a;
+            padding: 2px;
+            border-radius: 8px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background: #1f2940;
+            border: 1px dashed #2a3a55;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            position: relative;
+        }
+        .cell.drag-over {
+            background: #2a4a55;
+            border-color: #4ade80;
+        }
+        .cell.has-item {
+            background: #2a3a55;
+            border: 1px solid #4ade80;
+            cursor: pointer;
+        }
+        .cell.has-item:hover {
+            background: #3a4a65;
+        }
+        .cell .item-code {
+            font-weight: bold;
+            color: #4ade80;
+            font-size: 12px;
+        }
+        .cell .item-name {
+            color: #a0a0a0;
+            font-size: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 56px;
+        }
+        .cell .rotation {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            color: #e94560;
+        }
+        .cell.wall {
+            background: #3d2a1a;
+            border-color: #5a4030;
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            width: 350px;
+            background: #16213e;
+            border-left: 1px solid #2a3a55;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        .preview-panel h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        #preview-canvas {
+            flex: 1;
+            background: #0d0d1a;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .output-section {
+            margin-top: 16px;
+        }
+        .output-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+        }
+        #output {
+            background: #0d0d1a;
+            border: 1px solid #2a3a55;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #4ade80;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Instructions */
+        .instructions {
+            padding: 8px 12px;
+            background: #1f2940;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .instructions strong {
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="palette">
+        <h2>Assets</h2>
+        <input type="text" id="search" placeholder="Search assets..." style="width: 100%; padding: 8px; margin-bottom: 12px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea;">
+        <div id="palette-items"></div>
+    </div>
+
+    <div class="main">
+        <div class="toolbar">
+            <button onclick="clearGrid()">Clear Grid</button>
+            <button class="secondary" onclick="exportLayout()">Export Layout</button>
+            <button class="secondary" onclick="toggleWalls()">Toggle Walls</button>
+            <span>Grid: <input type="number" id="grid-size" value="9" min="3" max="15" style="width: 50px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea; padding: 4px;">
+            <button class="secondary" onclick="resizeGrid()">Resize</button></span>
+            <span style="margin-left: auto;">Click placed item to rotate (R) or delete (X)</span>
+        </div>
+
+        <div class="grid-container">
+            <div class="grid" id="grid"></div>
+        </div>
+    </div>
+
+    <div class="preview-panel">
+        <h2>3D Preview</h2>
+        <div class="instructions">
+            <strong>Drag</strong> assets from left panel onto grid.<br>
+            <strong>Click</strong> placed item to select, then <strong>R</strong> to rotate, <strong>X/Delete</strong> to remove.
+        </div>
+        <canvas id="preview-canvas"></canvas>
+        <div class="output-section">
+            <h3>Room Template Code</h3>
+            <div id="output">// Place items to generate code</div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // All dungeon assets - using actual filenames from assets/dungeon/
+        const assets = [
+            // Floors - Tile
+            { code: 'FT', name: 'floor_tile_small', file: 'floor_tile_small.gltf', category: 'Floors' },
+            { code: 'FL', name: 'floor_tile_large', file: 'floor_tile_large.gltf', category: 'Floors' },
+            { code: 'FD', name: 'floor_tile_decorated', file: 'floor_tile_small_decorated.gltf', category: 'Floors' },
+            { code: 'FB', name: 'floor_tile_broken_A', file: 'floor_tile_small_broken_A.gltf', category: 'Floors' },
+            { code: 'FC', name: 'floor_tile_broken_B', file: 'floor_tile_small_broken_B.gltf', category: 'Floors' },
+            { code: 'FW', name: 'floor_tile_weeds_A', file: 'floor_tile_small_weeds_A.gltf', category: 'Floors' },
+            { code: 'FX', name: 'floor_tile_weeds_B', file: 'floor_tile_small_weeds_B.gltf', category: 'Floors' },
+            { code: 'FR', name: 'floor_tile_rocks', file: 'floor_tile_large_rocks.gltf', category: 'Floors' },
+            { code: 'FG', name: 'floor_tile_grate', file: 'floor_tile_grate.gltf', category: 'Floors' },
+            { code: 'FO', name: 'floor_tile_grate_open', file: 'floor_tile_grate_open.gltf', category: 'Floors' },
+            { code: 'FS', name: 'floor_tile_spikes', file: 'floor_tile_big_spikes.gltf', category: 'Floors' },
+
+            // Floors - Dirt
+            { code: 'DA', name: 'floor_dirt_large', file: 'floor_dirt_large.gltf', category: 'Floors' },
+            { code: 'DB', name: 'floor_dirt_rocky', file: 'floor_dirt_large_rocky.gltf', category: 'Floors' },
+            { code: 'DC', name: 'floor_dirt_small_A', file: 'floor_dirt_small_A.gltf', category: 'Floors' },
+            { code: 'DD', name: 'floor_dirt_small_B', file: 'floor_dirt_small_B.gltf', category: 'Floors' },
+            { code: 'DE', name: 'floor_dirt_weeds', file: 'floor_dirt_small_weeds.gltf', category: 'Floors' },
+
+            // Floors - Wood
+            { code: 'WF', name: 'floor_wood_large', file: 'floor_wood_large.gltf', category: 'Floors' },
+            { code: 'WD', name: 'floor_wood_dark', file: 'floor_wood_large_dark.gltf', category: 'Floors' },
+            { code: 'WS', name: 'floor_wood_small', file: 'floor_wood_small.gltf', category: 'Floors' },
+
+            // Walls
+            { code: 'WA', name: 'wall', file: 'wall.gltf', category: 'Walls' },
+            { code: 'WB', name: 'wall_broken', file: 'wall_broken.gltf', category: 'Walls' },
+            { code: 'WC', name: 'wall_cracked', file: 'wall_cracked.gltf', category: 'Walls' },
+            { code: 'WH', name: 'wall_half', file: 'wall_half.gltf', category: 'Walls' },
+            { code: 'WR', name: 'wall_corner', file: 'wall_corner.gltf', category: 'Walls' },
+            { code: 'WG', name: 'wall_gated', file: 'wall_gated.gltf', category: 'Walls' },
+            { code: 'WL', name: 'wall_shelves', file: 'wall_shelves.gltf', category: 'Walls' },
+            { code: 'WP', name: 'wall_pillar', file: 'wall_pillar.gltf', category: 'Walls' },
+            { code: 'WT', name: 'wall_Tsplit', file: 'wall_Tsplit.gltf', category: 'Walls' },
+            { code: 'WX', name: 'wall_crossing', file: 'wall_crossing.gltf', category: 'Walls' },
+            { code: 'WE', name: 'wall_endcap', file: 'wall_endcap.gltf', category: 'Walls' },
+            { code: 'WO', name: 'wall_arched', file: 'wall_arched.gltf', category: 'Walls' },
+            { code: 'WN', name: 'wall_window_open', file: 'wall_window_open.gltf', category: 'Walls' },
+            { code: 'WI', name: 'wall_window_closed', file: 'wall_window_closed.gltf', category: 'Walls' },
+            { code: 'WY', name: 'wall_doorway', file: 'wall_doorway.gltf', category: 'Walls' },
+            { code: 'WZ', name: 'wall_scaffold', file: 'wall_scaffold.gltf', category: 'Walls' },
+
+            // Banners
+            { code: 'B1', name: 'banner_blue', file: 'banner_blue.gltf', category: 'Banners' },
+            { code: 'B2', name: 'banner_red', file: 'banner_red.gltf', category: 'Banners' },
+            { code: 'B3', name: 'banner_green', file: 'banner_green.gltf', category: 'Banners' },
+            { code: 'B4', name: 'banner_brown', file: 'banner_brown.gltf', category: 'Banners' },
+            { code: 'B5', name: 'banner_white', file: 'banner_white.gltf', category: 'Banners' },
+            { code: 'B6', name: 'banner_yellow', file: 'banner_yellow.gltf', category: 'Banners' },
+            { code: 'BS', name: 'banner_shield_blue', file: 'banner_shield_blue.gltf', category: 'Banners' },
+            { code: 'BT', name: 'banner_thin_red', file: 'banner_thin_red.gltf', category: 'Banners' },
+            { code: 'BR', name: 'banner_triple_blue', file: 'banner_triple_blue.gltf', category: 'Banners' },
+            { code: 'PA', name: 'banner_patternA_red', file: 'banner_patternA_red.gltf', category: 'Banners' },
+            { code: 'PB', name: 'banner_patternB_blue', file: 'banner_patternB_blue.gltf', category: 'Banners' },
+            { code: 'PC', name: 'banner_patternC_green', file: 'banner_patternC_green.gltf', category: 'Banners' },
+
+            // Tables
+            { code: 'TL', name: 'table_long', file: 'table_long.gltf', category: 'Furniture' },
+            { code: 'TD', name: 'table_long_decorated', file: 'table_long_decorated_A.gltf', category: 'Furniture' },
+            { code: 'TC', name: 'table_long_cloth', file: 'table_long_tablecloth.gltf', category: 'Furniture' },
+            { code: 'TB', name: 'table_long_broken', file: 'table_long_broken.gltf', category: 'Furniture' },
+            { code: 'TM', name: 'table_medium', file: 'table_medium.gltf', category: 'Furniture' },
+            { code: 'TE', name: 'table_medium_decorated', file: 'table_medium_decorated_A.gltf', category: 'Furniture' },
+            { code: 'TF', name: 'table_medium_cloth', file: 'table_medium_tablecloth.gltf', category: 'Furniture' },
+            { code: 'TS', name: 'table_small', file: 'table_small.gltf', category: 'Furniture' },
+            { code: 'TX', name: 'table_small_decorated', file: 'table_small_decorated_A.gltf', category: 'Furniture' },
+
+            // Seating
+            { code: 'CH', name: 'chair', file: 'chair.gltf', category: 'Furniture' },
+            { code: 'ST', name: 'stool', file: 'stool.gltf', category: 'Furniture' },
+            { code: 'BD', name: 'bed_decorated', file: 'bed_decorated.gltf', category: 'Furniture' },
+            { code: 'BF', name: 'bed_floor', file: 'bed_floor.gltf', category: 'Furniture' },
+            { code: 'BM', name: 'bed_frame', file: 'bed_frame.gltf', category: 'Furniture' },
+
+            // Storage
+            { code: 'SV', name: 'shelves', file: 'shelves.gltf', category: 'Furniture' },
+            { code: 'SL', name: 'shelf_large', file: 'shelf_large.gltf', category: 'Furniture' },
+            { code: 'SS', name: 'shelf_small', file: 'shelf_small.gltf', category: 'Furniture' },
+            { code: 'SC', name: 'shelf_candles', file: 'shelf_small_candles.gltf', category: 'Furniture' },
+
+            // Containers
+            { code: 'C1', name: 'chest', file: 'chest.gltf', category: 'Containers' },
+            { code: 'C2', name: 'chest_gold', file: 'chest_gold.gltf', category: 'Containers' },
+            { code: 'BL', name: 'barrel_large', file: 'barrel_large.gltf', category: 'Containers' },
+            { code: 'BE', name: 'barrel_decorated', file: 'barrel_large_decorated.gltf', category: 'Containers' },
+            { code: 'BA', name: 'barrel_small', file: 'barrel_small.gltf', category: 'Containers' },
+            { code: 'BK', name: 'barrel_stack', file: 'barrel_small_stack.gltf', category: 'Containers' },
+            { code: 'XL', name: 'box_large', file: 'box_large.gltf', category: 'Containers' },
+            { code: 'XS', name: 'box_small', file: 'box_small.gltf', category: 'Containers' },
+            { code: 'XD', name: 'box_decorated', file: 'box_small_decorated.gltf', category: 'Containers' },
+            { code: 'XK', name: 'box_stacked', file: 'box_stacked.gltf', category: 'Containers' },
+            { code: 'CS', name: 'crates_stacked', file: 'crates_stacked.gltf', category: 'Containers' },
+            { code: 'KG', name: 'keg', file: 'keg.gltf', category: 'Containers' },
+            { code: 'KD', name: 'keg_decorated', file: 'keg_decorated.gltf', category: 'Containers' },
+
+            // Trunks
+            { code: 'R1', name: 'trunk_large_A', file: 'trunk_large_A.gltf', category: 'Containers' },
+            { code: 'R2', name: 'trunk_large_B', file: 'trunk_large_B.gltf', category: 'Containers' },
+            { code: 'R3', name: 'trunk_medium_A', file: 'trunk_medium_A.gltf', category: 'Containers' },
+            { code: 'R4', name: 'trunk_small_A', file: 'trunk_small_A.gltf', category: 'Containers' },
+
+            // Candles & Lights
+            { code: 'CA', name: 'candle', file: 'candle.gltf', category: 'Lights' },
+            { code: 'CL', name: 'candle_lit', file: 'candle_lit.gltf', category: 'Lights' },
+            { code: 'CM', name: 'candle_melted', file: 'candle_melted.gltf', category: 'Lights' },
+            { code: 'CT', name: 'candle_thin', file: 'candle_thin.gltf', category: 'Lights' },
+            { code: 'CX', name: 'candle_thin_lit', file: 'candle_thin_lit.gltf', category: 'Lights' },
+            { code: 'C3', name: 'candle_triple', file: 'candle_triple.gltf', category: 'Lights' },
+            { code: 'TO', name: 'torch', file: 'torch.gltf', category: 'Lights' },
+            { code: 'TI', name: 'torch_lit', file: 'torch_lit.gltf', category: 'Lights' },
+            { code: 'TW', name: 'torch_mounted', file: 'torch_mounted.gltf', category: 'Lights' },
+
+            // Bottles
+            { code: 'V1', name: 'bottle_A_brown', file: 'bottle_A_brown.gltf', category: 'Items' },
+            { code: 'V2', name: 'bottle_A_green', file: 'bottle_A_green.gltf', category: 'Items' },
+            { code: 'V3', name: 'bottle_B_brown', file: 'bottle_B_brown.gltf', category: 'Items' },
+            { code: 'V4', name: 'bottle_C_green', file: 'bottle_C_green.gltf', category: 'Items' },
+            { code: 'VL', name: 'bottle_labeled', file: 'bottle_A_labeled_brown.gltf', category: 'Items' },
+
+            // Coins & Treasure
+            { code: 'G1', name: 'coin', file: 'coin.gltf', category: 'Items' },
+            { code: 'G2', name: 'coin_stack_small', file: 'coin_stack_small.gltf', category: 'Items' },
+            { code: 'G3', name: 'coin_stack_medium', file: 'coin_stack_medium.gltf', category: 'Items' },
+            { code: 'G4', name: 'coin_stack_large', file: 'coin_stack_large.gltf', category: 'Items' },
+
+            // Plates & Food
+            { code: 'PL', name: 'plate', file: 'plate.gltf', category: 'Items' },
+            { code: 'PS', name: 'plate_small', file: 'plate_small.gltf', category: 'Items' },
+            { code: 'PK', name: 'plate_stack', file: 'plate_stack.gltf', category: 'Items' },
+            { code: 'FA', name: 'plate_food_A', file: 'plate_food_A.gltf', category: 'Items' },
+            { code: 'FB', name: 'plate_food_B', file: 'plate_food_B.gltf', category: 'Items' },
+
+            // Keys
+            { code: 'KY', name: 'key', file: 'key.gltf', category: 'Items' },
+            { code: 'KR', name: 'keyring', file: 'keyring.gltf', category: 'Items' },
+            { code: 'KH', name: 'keyring_hanging', file: 'keyring_hanging.gltf', category: 'Items' },
+
+            // Weapons & Shields
+            { code: 'SW', name: 'sword_shield', file: 'sword_shield.gltf', category: 'Items' },
+            { code: 'SG', name: 'sword_shield_gold', file: 'sword_shield_gold.gltf', category: 'Items' },
+            { code: 'SX', name: 'sword_shield_broken', file: 'sword_shield_broken.gltf', category: 'Items' },
+
+            // Structure
+            { code: 'PI', name: 'pillar', file: 'pillar.gltf', category: 'Structure' },
+            { code: 'PD', name: 'pillar_decorated', file: 'pillar_decorated.gltf', category: 'Structure' },
+            { code: 'CO', name: 'column', file: 'column.gltf', category: 'Structure' },
+            { code: 'CE', name: 'ceiling_tile', file: 'ceiling_tile.gltf', category: 'Structure' },
+
+            // Barriers
+            { code: 'BR', name: 'barrier', file: 'barrier.gltf', category: 'Structure' },
+            { code: 'BH', name: 'barrier_half', file: 'barrier_half.gltf', category: 'Structure' },
+            { code: 'BC', name: 'barrier_corner', file: 'barrier_corner.gltf', category: 'Structure' },
+            { code: 'BO', name: 'barrier_column', file: 'barrier_column.gltf', category: 'Structure' },
+
+            // Stairs
+            { code: 'S1', name: 'stairs', file: 'stairs.gltf', category: 'Stairs' },
+            { code: 'S2', name: 'stairs_wide', file: 'stairs_wide.gltf', category: 'Stairs' },
+            { code: 'S3', name: 'stairs_narrow', file: 'stairs_narrow.gltf', category: 'Stairs' },
+            { code: 'S4', name: 'stairs_long', file: 'stairs_long.gltf', category: 'Stairs' },
+            { code: 'S5', name: 'stairs_walled', file: 'stairs_walled.gltf', category: 'Stairs' },
+            { code: 'S6', name: 'stairs_wood', file: 'stairs_wood.gltf', category: 'Stairs' },
+            { code: 'S7', name: 'stairs_wood_decorated', file: 'stairs_wood_decorated.gltf', category: 'Stairs' },
+
+            // Rubble
+            { code: 'RB', name: 'rubble_large', file: 'rubble_large.gltf', category: 'Misc' },
+            { code: 'RH', name: 'rubble_half', file: 'rubble_half.gltf', category: 'Misc' },
+        ];
+
+        let gridSize = 9;
+        let gridData = [];
+        let selectedCell = null;
+        let showWalls = true;
+        let draggedAsset = null;
+
+        // Three.js setup
+        let scene, camera, renderer, controls;
+        const loader = new GLTFLoader();
+        const loadedModels = new Map();
+
+        function initThree() {
+            const canvas = document.getElementById('preview-canvas');
+            const rect = canvas.getBoundingClientRect();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+
+            camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 1000);
+            camera.position.set(15, 15, 15);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(rect.width, rect.height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+            dir.position.set(10, 20, 10);
+            scene.add(dir);
+
+            // Ground plane
+            const groundGeo = new THREE.PlaneGeometry(30, 30);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.01;
+            scene.add(ground);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function buildPalette() {
+            const container = document.getElementById('palette-items');
+            const categories = {};
+
+            assets.forEach(asset => {
+                if (!categories[asset.category]) {
+                    categories[asset.category] = [];
+                }
+                categories[asset.category].push(asset);
+            });
+
+            for (const [category, items] of Object.entries(categories)) {
+                const section = document.createElement('div');
+                section.className = 'palette-section';
+                section.innerHTML = `<h3>${category} (${items.length})</h3>`;
+
+                const itemsDiv = document.createElement('div');
+                itemsDiv.className = 'palette-items';
+
+                items.forEach(asset => {
+                    const item = document.createElement('div');
+                    item.className = 'palette-item';
+                    item.draggable = true;
+                    item.dataset.code = asset.code;
+                    item.dataset.name = asset.name;
+                    item.dataset.file = asset.file;
+                    item.innerHTML = `
+                        <div class="thumbnail" data-file="${asset.file}">
+                            <span class="loading">...</span>
+                        </div>
+                        <span class="code">${asset.code}</span>
+                        <span class="name">${asset.name}</span>
+                    `;
+
+                    item.addEventListener('dragstart', (e) => {
+                        draggedAsset = asset;
+                        item.classList.add('dragging');
+                    });
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
+
+                    itemsDiv.appendChild(item);
+                });
+
+                section.appendChild(itemsDiv);
+                container.appendChild(section);
+            }
+        }
+
+        function buildGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
+            gridData = [];
+
+            for (let y = 0; y < gridSize; y++) {
+                const row = [];
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+
+                    // Mark wall positions (top and left edges)
+                    if (showWalls && (y === 0 || x === 0)) {
+                        cell.classList.add('wall');
+                    }
+
+                    cell.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        cell.classList.add('drag-over');
+                    });
+                    cell.addEventListener('dragleave', () => {
+                        cell.classList.remove('drag-over');
+                    });
+                    cell.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        cell.classList.remove('drag-over');
+                        if (draggedAsset) {
+                            placeItem(x, y, draggedAsset);
+                        }
+                    });
+                    cell.addEventListener('click', () => {
+                        selectCell(x, y, cell);
+                    });
+
+                    grid.appendChild(cell);
+                    row.push({ x, y, item: null, rotation: 0 });
+                }
+                gridData.push(row);
+            }
+        }
+
+        function placeItem(x, y, asset) {
+            const cellData = gridData[y][x];
+            cellData.item = asset;
+            cellData.rotation = 0;
+            updateCellDisplay(x, y);
+            updatePreview();
+            updateOutput();
+        }
+
+        function updateCellDisplay(x, y) {
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            const cellData = gridData[y][x];
+
+            if (cellData.item) {
+                cell.classList.add('has-item');
+                cell.innerHTML = `
+                    <span class="item-code">${cellData.item.code}</span>
+                    <span class="item-name">${cellData.item.name}</span>
+                    ${cellData.rotation > 0 ? `<span class="rotation">${cellData.rotation}°</span>` : ''}
+                `;
+            } else {
+                cell.classList.remove('has-item');
+                cell.innerHTML = '';
+            }
+
+            if (showWalls && (y === 0 || x === 0)) {
+                cell.classList.add('wall');
+            }
+        }
+
+        function selectCell(x, y, cell) {
+            // Deselect previous
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+
+            if (gridData[y][x].item) {
+                cell.classList.add('selected');
+                selectedCell = { x, y };
+            } else {
+                selectedCell = null;
+            }
+        }
+
+        async function updatePreview() {
+            // Clear existing items (keep lights and ground)
+            const toRemove = [];
+            scene.traverse(obj => {
+                if (obj.userData.isPlacedItem) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach(obj => scene.remove(obj));
+
+            // Add grid items
+            const tileSize = 2;
+            const offset = (gridSize * tileSize) / 2 - tileSize / 2;
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    if (cellData.item) {
+                        try {
+                            const model = await loadModel(cellData.item.file);
+                            if (model) {
+                                const clone = model.clone();
+                                clone.position.set(
+                                    x * tileSize - offset,
+                                    0,
+                                    y * tileSize - offset
+                                );
+                                clone.rotation.y = (cellData.rotation * Math.PI) / 180;
+                                clone.userData.isPlacedItem = true;
+                                scene.add(clone);
+                            }
+                        } catch (e) {
+                            console.log('Could not load:', cellData.item.file);
+                        }
+                    }
+                }
+            }
+        }
+
+        async function loadModel(filename) {
+            if (loadedModels.has(filename)) {
+                return loadedModels.get(filename);
+            }
+
+            return new Promise((resolve) => {
+                loader.load(
+                    `assets/dungeon/${filename}`,
+                    (gltf) => {
+                        const model = gltf.scene;
+                        model.scale.setScalar(1);
+                        loadedModels.set(filename, model);
+                        resolve(model);
+                    },
+                    undefined,
+                    () => {
+                        loadedModels.set(filename, null);
+                        resolve(null);
+                    }
+                );
+            });
+        }
+
+        function updateOutput() {
+            const items = [];
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    if (cellData.item) {
+                        items.push({
+                            x: x - Math.floor(gridSize / 2),
+                            y: y - Math.floor(gridSize / 2),
+                            file: cellData.item.file,
+                            rotation: cellData.rotation
+                        });
+                    }
+                }
+            }
+
+            const output = document.getElementById('output');
+            if (items.length === 0) {
+                output.textContent = '// Place items to generate code';
+            } else {
+                output.textContent = `const roomTemplate = ${JSON.stringify(items, null, 2)};`;
+            }
+        }
+
+        window.clearGrid = function() {
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    gridData[y][x].item = null;
+                    gridData[y][x].rotation = 0;
+                    updateCellDisplay(x, y);
+                }
+            }
+            updatePreview();
+            updateOutput();
+        };
+
+        window.exportLayout = function() {
+            const output = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Layout code copied to clipboard!');
+            });
+        };
+
+        window.toggleWalls = function() {
+            showWalls = !showWalls;
+            buildGrid();
+        };
+
+        window.resizeGrid = function() {
+            gridSize = parseInt(document.getElementById('grid-size').value) || 9;
+            gridSize = Math.max(3, Math.min(15, gridSize));
+            buildGrid();
+            updatePreview();
+            updateOutput();
+        };
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (!selectedCell) return;
+            const { x, y } = selectedCell;
+
+            if (e.key === 'r' || e.key === 'R') {
+                gridData[y][x].rotation = (gridData[y][x].rotation + 90) % 360;
+                updateCellDisplay(x, y);
+                updatePreview();
+                updateOutput();
+            } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete' || e.key === 'Backspace') {
+                gridData[y][x].item = null;
+                gridData[y][x].rotation = 0;
+                updateCellDisplay(x, y);
+                selectedCell = null;
+                updatePreview();
+                updateOutput();
+            }
+        });
+
+        // Search
+        document.getElementById('search').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.palette-item').forEach(item => {
+                const code = item.dataset.code.toLowerCase();
+                const name = item.dataset.name.toLowerCase();
+                item.style.display = (code.includes(term) || name.includes(term)) ? '' : 'none';
+            });
+        });
+
+        // Thumbnail rendering system
+        const thumbnailCache = new Map();
+
+        async function renderThumbnails() {
+            const thumbnails = document.querySelectorAll('.thumbnail[data-file]');
+
+            // Create a shared renderer for thumbnails
+            const thumbRenderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true
+            });
+            thumbRenderer.setSize(140, 110); // 2x for retina
+            thumbRenderer.setPixelRatio(1);
+
+            const thumbScene = new THREE.Scene();
+            thumbScene.background = new THREE.Color(0x0d0d1a);
+
+            const thumbCamera = new THREE.PerspectiveCamera(40, 140/110, 0.1, 100);
+
+            // Lighting for thumbnails
+            const thumbAmbient = new THREE.AmbientLight(0xffffff, 0.7);
+            thumbScene.add(thumbAmbient);
+            const thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
+            thumbDir.position.set(3, 5, 4);
+            thumbScene.add(thumbDir);
+
+            for (const thumb of thumbnails) {
+                const file = thumb.dataset.file;
+
+                // Check cache first
+                if (thumbnailCache.has(file)) {
+                    thumb.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = thumbnailCache.get(file);
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'contain';
+                    thumb.appendChild(img);
+                    continue;
+                }
+
+                try {
+                    const model = await loadModel(file);
+                    if (model) {
+                        // Clear previous models from thumb scene
+                        const toRemove = [];
+                        thumbScene.traverse(obj => {
+                            if (obj.userData.isThumbModel) toRemove.push(obj);
+                        });
+                        toRemove.forEach(obj => thumbScene.remove(obj));
+
+                        // Clone and add model
+                        const clone = model.clone();
+                        clone.userData.isThumbModel = true;
+
+                        // Calculate bounding box to center and scale
+                        const box = new THREE.Box3().setFromObject(clone);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+
+                        // Center the model
+                        clone.position.sub(center);
+
+                        // Position camera based on size
+                        const distance = maxDim * 2.2;
+                        thumbCamera.position.set(distance * 0.7, distance * 0.5, distance * 0.7);
+                        thumbCamera.lookAt(0, 0, 0);
+
+                        thumbScene.add(clone);
+
+                        // Render
+                        thumbRenderer.render(thumbScene, thumbCamera);
+
+                        // Get image data
+                        const dataUrl = thumbRenderer.domElement.toDataURL('image/png');
+                        thumbnailCache.set(file, dataUrl);
+
+                        // Update thumbnail element
+                        thumb.innerHTML = '';
+                        const img = document.createElement('img');
+                        img.src = dataUrl;
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.objectFit = 'contain';
+                        thumb.appendChild(img);
+
+                        // Clean up
+                        thumbScene.remove(clone);
+                    } else {
+                        thumb.innerHTML = '<span class="loading">N/A</span>';
+                    }
+                } catch (e) {
+                    thumb.innerHTML = '<span class="loading">ERR</span>';
+                }
+            }
+
+            // Dispose of thumbnail renderer
+            thumbRenderer.dispose();
+        }
+
+        // Initialize
+        buildPalette();
+        buildGrid();
+        initThree();
+
+        // Render thumbnails after a short delay to let page settle
+        setTimeout(renderThumbnails, 500);
+    </script>
+</body>
+</html>
