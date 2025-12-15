@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dungeon Designer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #1a1a2e;
+            color: #eaeaea;
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Asset Palette */
+        .palette {
+            width: 280px;
+            background: #16213e;
+            padding: 16px;
+            overflow-y: auto;
+            border-right: 1px solid #2a3a55;
+        }
+        .palette h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .palette-section {
+            margin-bottom: 20px;
+        }
+        .palette-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .palette-section h3:hover {
+            color: #ff6b6b;
+        }
+        .palette-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .palette-item {
+            width: 70px;
+            height: 80px;
+            background: #1f2940;
+            border: 1px solid #2a3a55;
+            border-radius: 4px;
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 9px;
+            text-align: center;
+            transition: all 0.2s;
+            padding-bottom: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        .palette-item:hover {
+            background: #2a3a55;
+            border-color: #e94560;
+        }
+        .palette-item.dragging {
+            opacity: 0.5;
+        }
+        .palette-item .thumbnail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 70px;
+            height: 55px;
+            background: #0d0d1a;
+        }
+        .palette-item .thumbnail canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .palette-item .loading {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: #a0a0a0;
+        }
+        .palette-item .code {
+            font-weight: bold;
+            color: #4ade80;
+            position: relative;
+            z-index: 1;
+        }
+        .palette-item .name {
+            color: #a0a0a0;
+            font-size: 7px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 66px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Main Area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            padding: 12px 20px;
+            background: #16213e;
+            border-bottom: 1px solid #2a3a55;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 8px 16px;
+            background: #e94560;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .toolbar button:hover {
+            background: #ff6b6b;
+        }
+        .toolbar button.secondary {
+            background: #2a3a55;
+        }
+        .toolbar button.secondary:hover {
+            background: #3a4a65;
+        }
+        .toolbar span {
+            color: #a0a0a0;
+            font-size: 13px;
+        }
+        .toolbar select {
+            background: #1f2940;
+            border: 1px solid #2a3a55;
+            border-radius: 4px;
+            color: #eaeaea;
+            padding: 4px 8px;
+        }
+        .layer-indicator {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            font-size: 8px;
+            color: #e94560;
+            background: rgba(0,0,0,0.5);
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
+
+        /* Grid Area */
+        .grid-container {
+            flex: 1;
+            overflow: auto;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .grid {
+            display: grid;
+            gap: 2px;
+            background: #0d0d1a;
+            padding: 2px;
+            border-radius: 8px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background: #1f2940;
+            border: 1px dashed #2a3a55;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            position: relative;
+        }
+        .cell.drag-over {
+            background: #2a4a55;
+            border-color: #4ade80;
+        }
+        .cell.has-item {
+            background: #2a3a55;
+            border: 1px solid #4ade80;
+            cursor: pointer;
+        }
+        .cell.has-item:hover {
+            background: #3a4a65;
+        }
+        .cell .item-code {
+            font-weight: bold;
+            color: #4ade80;
+            font-size: 12px;
+        }
+        .cell .item-name {
+            color: #a0a0a0;
+            font-size: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 56px;
+        }
+        .cell .rotation {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 8px;
+            color: #e94560;
+        }
+        .cell.selected {
+            border: 2px solid #e94560;
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            width: 350px;
+            background: #16213e;
+            border-left: 1px solid #2a3a55;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+        .preview-panel h2 {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        #preview-canvas {
+            flex: 1;
+            background: #0d0d1a;
+            border-radius: 8px;
+            min-height: 300px;
+        }
+        .output-section {
+            margin-top: 16px;
+        }
+        .output-section h3 {
+            font-size: 12px;
+            color: #e94560;
+            margin-bottom: 8px;
+        }
+        #output {
+            background: #0d0d1a;
+            border: 1px solid #2a3a55;
+            border-radius: 6px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 11px;
+            color: #4ade80;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* Instructions */
+        .instructions {
+            padding: 8px 12px;
+            background: #1f2940;
+            border-radius: 6px;
+            font-size: 11px;
+            color: #a0a0a0;
+            margin-bottom: 12px;
+        }
+        .instructions strong {
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="palette">
+        <h2>Dungeon Assets</h2>
+        <input type="text" id="search" placeholder="Search assets..." style="width: 100%; padding: 8px; margin-bottom: 12px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea;">
+        <div id="palette-items"></div>
+    </div>
+
+    <div class="main">
+        <div class="toolbar">
+            <button onclick="clearGrid()">Clear Grid</button>
+            <button class="secondary" onclick="exportLayout()">Export Layout</button>
+            <span>Grid: <input type="number" id="grid-size" value="11" min="3" max="25" style="width: 50px; background: #1f2940; border: 1px solid #2a3a55; border-radius: 4px; color: #eaeaea; padding: 4px;">
+            <button class="secondary" onclick="resizeGrid()">Resize</button></span>
+            <span>Layer: <select id="current-layer" onchange="changeLayer()">
+                <option value="0">0 (Floor)</option>
+                <option value="1" selected>1 (Base)</option>
+                <option value="2">2 (Walls)</option>
+                <option value="3">3 (Props)</option>
+            </select></span>
+            <span style="margin-left: auto;">Click item to select, <strong>R</strong>=rotate, <strong>X</strong>=delete, <strong>1-4</strong>=layer</span>
+        </div>
+
+        <div class="grid-container">
+            <div class="grid" id="grid"></div>
+        </div>
+    </div>
+
+    <div class="preview-panel">
+        <h2>3D Preview</h2>
+        <div class="instructions">
+            <strong>Drag</strong> assets from left panel onto grid.<br>
+            <strong>Click</strong> placed item to select, then <strong>R</strong> to rotate, <strong>X/Delete</strong> to remove.
+        </div>
+        <canvas id="preview-canvas"></canvas>
+        <div class="output-section">
+            <h3>Dungeon Template Code</h3>
+            <div id="output">// Place items to generate code</div>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // All dungeon assets
+        const assets = [
+            // Floor Tiles (dungeon)
+            { code: 'FTL', name: 'floor_tile_large', file: 'floor_tile_large.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTS', name: 'floor_tile_small', file: 'floor_tile_small.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTD', name: 'floor_decorated', file: 'floor_tile_small_decorated.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTW', name: 'floor_weeds', file: 'floor_tile_small_weeds_A.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTB', name: 'floor_broken', file: 'floor_tile_small_broken_A.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTC', name: 'floor_corner', file: 'floor_tile_small_corner.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FTG', name: 'floor_grate', file: 'floor_tile_grate.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FGO', name: 'floor_grate_open', file: 'floor_tile_grate_open.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FBG', name: 'floor_big_grate', file: 'floor_tile_big_grate.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FSP', name: 'floor_spikes', file: 'floor_tile_big_spikes.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FWL', name: 'floor_wood_large', file: 'floor_wood_large.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FWS', name: 'floor_wood_small', file: 'floor_wood_small.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FDL', name: 'floor_dirt_large', file: 'floor_dirt_large.gltf', category: 'Floors', path: 'dungeon' },
+            { code: 'FDS', name: 'floor_dirt_small', file: 'floor_dirt_small_A.gltf', category: 'Floors', path: 'dungeon' },
+
+            // Walls
+            { code: 'WAL', name: 'wall', file: 'wall.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WBR', name: 'wall_broken', file: 'wall_broken.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WCR', name: 'wall_cracked', file: 'wall_cracked.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WCN', name: 'wall_corner', file: 'wall_corner.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WCS', name: 'wall_corner_small', file: 'wall_corner_small.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WAR', name: 'wall_arched', file: 'wall_arched.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WDW', name: 'wall_doorway', file: 'wall_doorway.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WWO', name: 'wall_window_open', file: 'wall_window_open.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WWC', name: 'wall_window_closed', file: 'wall_window_closed.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WGT', name: 'wall_gated', file: 'wall_gated.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WTS', name: 'wall_tsplit', file: 'wall_Tsplit.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WCX', name: 'wall_crossing', file: 'wall_crossing.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WHF', name: 'wall_half', file: 'wall_half.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WEN', name: 'wall_endcap', file: 'wall_endcap.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WSL', name: 'wall_sloped', file: 'wall_sloped.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WPL', name: 'wall_pillar', file: 'wall_pillar.gltf', category: 'Walls', path: 'dungeon' },
+            { code: 'WSH', name: 'wall_shelves', file: 'wall_shelves.gltf', category: 'Walls', path: 'dungeon' },
+
+            // Stairs
+            { code: 'STR', name: 'stairs', file: 'stairs.gltf', category: 'Stairs', path: 'dungeon' },
+            { code: 'STL', name: 'stairs_long', file: 'stairs_long.gltf', category: 'Stairs', path: 'dungeon' },
+            { code: 'STN', name: 'stairs_narrow', file: 'stairs_narrow.gltf', category: 'Stairs', path: 'dungeon' },
+            { code: 'STW', name: 'stairs_wide', file: 'stairs_wide.gltf', category: 'Stairs', path: 'dungeon' },
+            { code: 'SWD', name: 'stairs_wood', file: 'stairs_wood.gltf', category: 'Stairs', path: 'dungeon' },
+            { code: 'SWL', name: 'stairs_walled', file: 'stairs_walled.gltf', category: 'Stairs', path: 'dungeon' },
+
+            // Pillars & Columns
+            { code: 'PIL', name: 'pillar', file: 'pillar.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'PLD', name: 'pillar_decorated', file: 'pillar_decorated.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'COL', name: 'column', file: 'column.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'BAR', name: 'barrier', file: 'barrier.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'BRC', name: 'barrier_column', file: 'barrier_column.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'BRH', name: 'barrier_half', file: 'barrier_half.gltf', category: 'Pillars', path: 'dungeon' },
+            { code: 'BCR', name: 'barrier_corner', file: 'barrier_corner.gltf', category: 'Pillars', path: 'dungeon' },
+
+            // Tables
+            { code: 'TBL', name: 'table_long', file: 'table_long.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TLD', name: 'table_long_dec', file: 'table_long_decorated_A.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TLC', name: 'table_long_cloth', file: 'table_long_tablecloth.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TBM', name: 'table_medium', file: 'table_medium.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TMD', name: 'table_medium_dec', file: 'table_medium_decorated_A.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TBS', name: 'table_small', file: 'table_small.gltf', category: 'Tables', path: 'dungeon' },
+            { code: 'TSD', name: 'table_small_dec', file: 'table_small_decorated_A.gltf', category: 'Tables', path: 'dungeon' },
+
+            // Seating
+            { code: 'CHR', name: 'chair', file: 'chair.gltf', category: 'Seating', path: 'dungeon' },
+            { code: 'STL', name: 'stool', file: 'stool.gltf', category: 'Seating', path: 'dungeon' },
+            { code: 'BED', name: 'bed_frame', file: 'bed_frame.gltf', category: 'Seating', path: 'dungeon' },
+            { code: 'BDD', name: 'bed_decorated', file: 'bed_decorated.gltf', category: 'Seating', path: 'dungeon' },
+            { code: 'BDF', name: 'bed_floor', file: 'bed_floor.gltf', category: 'Seating', path: 'dungeon' },
+
+            // Storage
+            { code: 'CST', name: 'chest', file: 'chest.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'CSG', name: 'chest_gold', file: 'chest_gold.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'TKL', name: 'trunk_large', file: 'trunk_large_A.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'TKM', name: 'trunk_medium', file: 'trunk_medium_A.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'TKS', name: 'trunk_small', file: 'trunk_small_A.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'BXL', name: 'box_large', file: 'box_large.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'BXS', name: 'box_small', file: 'box_small.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'CRS', name: 'crates_stacked', file: 'crates_stacked.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'SHF', name: 'shelf_large', file: 'shelf_large.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'SHS', name: 'shelf_small', file: 'shelf_small.gltf', category: 'Storage', path: 'dungeon' },
+            { code: 'SHV', name: 'shelves', file: 'shelves.gltf', category: 'Storage', path: 'dungeon' },
+
+            // Barrels & Kegs
+            { code: 'BRL', name: 'barrel_large', file: 'barrel_large.gltf', category: 'Barrels', path: 'dungeon' },
+            { code: 'BRD', name: 'barrel_decorated', file: 'barrel_large_decorated.gltf', category: 'Barrels', path: 'dungeon' },
+            { code: 'BRS', name: 'barrel_small', file: 'barrel_small.gltf', category: 'Barrels', path: 'dungeon' },
+            { code: 'BSK', name: 'barrel_stack', file: 'barrel_small_stack.gltf', category: 'Barrels', path: 'dungeon' },
+            { code: 'KEG', name: 'keg', file: 'keg.gltf', category: 'Barrels', path: 'dungeon' },
+            { code: 'KGD', name: 'keg_decorated', file: 'keg_decorated.gltf', category: 'Barrels', path: 'dungeon' },
+
+            // Lighting
+            { code: 'TRC', name: 'torch', file: 'torch.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'TRL', name: 'torch_lit', file: 'torch_lit.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'TRM', name: 'torch_mounted', file: 'torch_mounted.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'CND', name: 'candle', file: 'candle.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'CNL', name: 'candle_lit', file: 'candle_lit.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'CNT', name: 'candle_triple', file: 'candle_triple.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'CNM', name: 'candle_melted', file: 'candle_melted.gltf', category: 'Lighting', path: 'dungeon' },
+            { code: 'SHC', name: 'shelf_candles', file: 'shelf_small_candles.gltf', category: 'Lighting', path: 'dungeon' },
+
+            // Banners
+            { code: 'BNR', name: 'banner_red', file: 'banner_red.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BNB', name: 'banner_blue', file: 'banner_blue.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BNG', name: 'banner_green', file: 'banner_green.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BNY', name: 'banner_yellow', file: 'banner_yellow.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BNW', name: 'banner_white', file: 'banner_white.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BSR', name: 'banner_shield_red', file: 'banner_shield_red.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BSB', name: 'banner_shield_blue', file: 'banner_shield_blue.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BTR', name: 'banner_triple_red', file: 'banner_triple_red.gltf', category: 'Banners', path: 'dungeon' },
+            { code: 'BTB', name: 'banner_triple_blue', file: 'banner_triple_blue.gltf', category: 'Banners', path: 'dungeon' },
+
+            // Weapons & Shields
+            { code: 'SWS', name: 'sword_shield', file: 'sword_shield.gltf', category: 'Weapons', path: 'dungeon' },
+            { code: 'SSG', name: 'sword_shield_gold', file: 'sword_shield_gold.gltf', category: 'Weapons', path: 'dungeon' },
+            { code: 'SSB', name: 'sword_shield_broken', file: 'sword_shield_broken.gltf', category: 'Weapons', path: 'dungeon' },
+
+            // Treasure
+            { code: 'CON', name: 'coin', file: 'coin.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'CSL', name: 'coin_stack_large', file: 'coin_stack_large.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'CSM', name: 'coin_stack_medium', file: 'coin_stack_medium.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'CSS', name: 'coin_stack_small', file: 'coin_stack_small.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'KEY', name: 'key', file: 'key.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'KYR', name: 'keyring', file: 'keyring.gltf', category: 'Treasure', path: 'dungeon' },
+            { code: 'KYH', name: 'keyring_hanging', file: 'keyring_hanging.gltf', category: 'Treasure', path: 'dungeon' },
+
+            // Food & Drink
+            { code: 'PLT', name: 'plate', file: 'plate.gltf', category: 'Food', path: 'dungeon' },
+            { code: 'PLA', name: 'plate_food_A', file: 'plate_food_A.gltf', category: 'Food', path: 'dungeon' },
+            { code: 'PLB', name: 'plate_food_B', file: 'plate_food_B.gltf', category: 'Food', path: 'dungeon' },
+            { code: 'PST', name: 'plate_stack', file: 'plate_stack.gltf', category: 'Food', path: 'dungeon' },
+            { code: 'BTG', name: 'bottle_green', file: 'bottle_A_green.gltf', category: 'Food', path: 'dungeon' },
+            { code: 'BTB', name: 'bottle_brown', file: 'bottle_A_brown.gltf', category: 'Food', path: 'dungeon' },
+
+            // Debris
+            { code: 'RBL', name: 'rubble_large', file: 'rubble_large.gltf', category: 'Debris', path: 'dungeon' },
+            { code: 'RBH', name: 'rubble_half', file: 'rubble_half.gltf', category: 'Debris', path: 'dungeon' },
+
+            // Halloween - Graveyard
+            { code: 'GRV', name: 'grave_A', file: 'grave_A.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'GRD', name: 'grave_destroyed', file: 'grave_A_destroyed.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'GRB', name: 'grave_B', file: 'grave_B.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'GST', name: 'gravestone', file: 'gravestone.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'GMA', name: 'gravemarker_A', file: 'gravemarker_A.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'GMB', name: 'gravemarker_B', file: 'gravemarker_B.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'CRP', name: 'crypt', file: 'crypt.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'COF', name: 'coffin', file: 'coffin.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'CFD', name: 'coffin_decorated', file: 'coffin_decorated.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'SHR', name: 'shrine', file: 'shrine.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'SRC', name: 'shrine_candles', file: 'shrine_candles.gltf', category: 'Halloween', path: 'halloween' },
+
+            // Halloween - Spooky Props
+            { code: 'SKL', name: 'skull', file: 'skull.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'SKC', name: 'skull_candle', file: 'skull_candle.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'BNA', name: 'bone_A', file: 'bone_A.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'BNB', name: 'bone_B', file: 'bone_B.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'BNC', name: 'bone_C', file: 'bone_C.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'PSK', name: 'post_skull', file: 'post_skull.gltf', category: 'Halloween', path: 'halloween' },
+
+            // Halloween - Pumpkins
+            { code: 'PMP', name: 'pumpkin_orange', file: 'pumpkin_orange.gltf', category: 'Pumpkins', path: 'halloween' },
+            { code: 'PMY', name: 'pumpkin_yellow', file: 'pumpkin_yellow.gltf', category: 'Pumpkins', path: 'halloween' },
+            { code: 'JKL', name: 'jackolantern', file: 'pumpkin_orange_jackolantern.gltf', category: 'Pumpkins', path: 'halloween' },
+            { code: 'PMS', name: 'pumpkin_small', file: 'pumpkin_orange_small.gltf', category: 'Pumpkins', path: 'halloween' },
+            { code: 'PYS', name: 'pumpkin_yellow_sm', file: 'pumpkin_yellow_small.gltf', category: 'Pumpkins', path: 'halloween' },
+
+            // Halloween - Structures
+            { code: 'ARC', name: 'arch', file: 'arch.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'ARG', name: 'arch_gate', file: 'arch_gate.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'FNC', name: 'fence', file: 'fence.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'FNG', name: 'fence_gate', file: 'fence_gate.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'FNP', name: 'fence_pillar', file: 'fence_pillar.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'FNB', name: 'fence_broken', file: 'fence_broken.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'POS', name: 'post', file: 'post.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'PLR', name: 'pillar', file: 'pillar.gltf', category: 'Halloween', path: 'halloween' },
+
+            // Halloween - Trees
+            { code: 'TDS', name: 'tree_dead_small', file: 'tree_dead_small.gltf', category: 'Dead Trees', path: 'halloween' },
+            { code: 'TDM', name: 'tree_dead_medium', file: 'tree_dead_medium.gltf', category: 'Dead Trees', path: 'halloween' },
+            { code: 'TDL', name: 'tree_dead_large', file: 'tree_dead_large.gltf', category: 'Dead Trees', path: 'halloween' },
+            { code: 'TPS', name: 'tree_pine_small', file: 'tree_pine_orange_small.gltf', category: 'Dead Trees', path: 'halloween' },
+            { code: 'TPM', name: 'tree_pine_medium', file: 'tree_pine_orange_medium.gltf', category: 'Dead Trees', path: 'halloween' },
+            { code: 'TPL', name: 'tree_pine_large', file: 'tree_pine_orange_large.gltf', category: 'Dead Trees', path: 'halloween' },
+
+            // Halloween - Floor/Ground
+            { code: 'FLD', name: 'floor_dirt', file: 'floor_dirt.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'FLG', name: 'floor_grave', file: 'floor_dirt_grave.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'PTH', name: 'path_A', file: 'path_A.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'BEN', name: 'bench', file: 'bench.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'BND', name: 'bench_decorated', file: 'bench_decorated.gltf', category: 'Halloween', path: 'halloween' },
+            { code: 'LNT', name: 'lantern', file: 'lantern_standing.gltf', category: 'Halloween', path: 'halloween' },
+
+            // Spooktober - Graveyard Tiles
+            { code: 'SGT', name: 'tile_graveyard', file: 'tileLarge_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SGS', name: 'tile_small', file: 'tileSmall_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SGL', name: 'tile_low', file: 'tileLow_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SGM', name: 'tile_medium', file: 'tileMedium_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SGH', name: 'tile_high', file: 'tileHigh_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SG2', name: 'tile_2x2', file: 'tile2x2_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'DTL', name: 'detail_graveyard', file: 'detail_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'DTS', name: 'detail_single', file: 'detailSingle_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Trees & Props
+            { code: 'STA', name: 'tree_A', file: 'treeA_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'STB', name: 'tree_B', file: 'treeB_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'STC', name: 'tree_C', file: 'treeC_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'STD', name: 'tree_D', file: 'treeD_graveyard.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'GVS', name: 'gravestone', file: 'gravestone.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SHN', name: 'shrine', file: 'shrine.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'CLD', name: 'cauldron', file: 'cauldron.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'LMP', name: 'lamp_post', file: 'lampPost.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'PCB', name: 'path_cobbled', file: 'pathCobbled.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'PDT', name: 'path_dirt', file: 'pathDirt.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Fences
+            { code: 'SFN', name: 'fence', file: 'fence.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SFS', name: 'fence_single', file: 'fenceSingle.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SFD', name: 'fence_double', file: 'fenceDouble.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SFC', name: 'fence_corner', file: 'fenceCorner.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SFP', name: 'fence_post', file: 'fencePost.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Pumpkins
+            { code: 'SPL', name: 'pumpkin_large', file: 'pumpkinLarge.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SPS', name: 'pumpkin_small', file: 'pumpkinSmall.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'JKB', name: 'jackolantern_big', file: 'jackolantern_big.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'JKS', name: 'jackolantern_small', file: 'jackolantern_small.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Candles
+            { code: 'SCL', name: 'candle_large', file: 'candleLarge.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SCS', name: 'candle_small', file: 'candleSmall.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'SCB', name: 'candle_bundle', file: 'candleBundle.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Coffins
+            { code: 'CFA', name: 'coffin_A_top', file: 'coffinA_top.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+            { code: 'CFB', name: 'coffin_B_top', file: 'coffinB_top.gltf.glb', category: 'Spooktober', path: 'spooktober' },
+
+            // Spooktober - Candy (fun!)
+            { code: 'CNA', name: 'candy_A', file: 'candyA.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CNB', name: 'candy_B', file: 'candyB.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CNC', name: 'candy_C', file: 'candyC.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CND', name: 'candy_D', file: 'candyD.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CCN', name: 'candy_corn', file: 'candyCorn.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CBG', name: 'candy_bag', file: 'candyBag.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'CBK', name: 'candy_bucket', file: 'candyBucket.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'LLA', name: 'lollipop_A', file: 'lollipopA.gltf.glb', category: 'Candy', path: 'spooktober' },
+            { code: 'LLB', name: 'lollipop_B', file: 'lollipopB.gltf.glb', category: 'Candy', path: 'spooktober' },
+
+            // Resources - Gold
+            { code: 'GDB', name: 'gold_bar', file: 'Gold_Bar.gltf', category: 'Gold', path: 'resource' },
+            { code: 'GBS', name: 'gold_bars', file: 'Gold_Bars.gltf', category: 'Gold', path: 'resource' },
+            { code: 'GBL', name: 'gold_stack_large', file: 'Gold_Bars_Stack_Large.gltf', category: 'Gold', path: 'resource' },
+            { code: 'GBM', name: 'gold_stack_med', file: 'Gold_Bars_Stack_Medium.gltf', category: 'Gold', path: 'resource' },
+            { code: 'GNG', name: 'gold_nuggets', file: 'Gold_Nuggets.gltf', category: 'Gold', path: 'resource' },
+
+            // Resources - Silver
+            { code: 'SVB', name: 'silver_bar', file: 'Silver_Bar.gltf', category: 'Silver', path: 'resource' },
+            { code: 'SVS', name: 'silver_bars', file: 'Silver_Bars.gltf', category: 'Silver', path: 'resource' },
+            { code: 'SBL', name: 'silver_stack_lg', file: 'Silver_Bars_Stack_Large.gltf', category: 'Silver', path: 'resource' },
+            { code: 'SBM', name: 'silver_stack_md', file: 'Silver_Bars_Stack_Medium.gltf', category: 'Silver', path: 'resource' },
+            { code: 'SNL', name: 'silver_nugget_lg', file: 'Silver_Nugget_Large.gltf', category: 'Silver', path: 'resource' },
+            { code: 'SNS', name: 'silver_nugget_sm', file: 'Silver_Nugget_Small.gltf', category: 'Silver', path: 'resource' },
+
+            // Resources - Copper
+            { code: 'CPB', name: 'copper_bar', file: 'Copper_Bar.gltf', category: 'Copper', path: 'resource' },
+            { code: 'CPS', name: 'copper_bars', file: 'Copper_Bars.gltf', category: 'Copper', path: 'resource' },
+            { code: 'CBL', name: 'copper_stack_lg', file: 'Copper_Bars_Stack_Large.gltf', category: 'Copper', path: 'resource' },
+            { code: 'CBM', name: 'copper_stack_md', file: 'Copper_Bars_Stack_Medium.gltf', category: 'Copper', path: 'resource' },
+            { code: 'CNL', name: 'copper_nugget_lg', file: 'Copper_Nugget_Large.gltf', category: 'Copper', path: 'resource' },
+            { code: 'CNS', name: 'copper_nugget_sm', file: 'Copper_Nugget_Small.gltf', category: 'Copper', path: 'resource' },
+
+            // Resources - Iron
+            { code: 'IRB', name: 'iron_bar', file: 'Iron_Bar.gltf', category: 'Iron', path: 'resource' },
+            { code: 'IRS', name: 'iron_bars', file: 'Iron_Bars.gltf', category: 'Iron', path: 'resource' },
+            { code: 'IBL', name: 'iron_stack_lg', file: 'Iron_Bars_Stack_Large.gltf', category: 'Iron', path: 'resource' },
+            { code: 'IBM', name: 'iron_stack_md', file: 'Iron_Bars_Stack_Medium.gltf', category: 'Iron', path: 'resource' },
+            { code: 'INL', name: 'iron_nugget_lg', file: 'Iron_Nugget_Large.gltf', category: 'Iron', path: 'resource' },
+            { code: 'INS', name: 'iron_nugget_sm', file: 'Iron_Nugget_Small.gltf', category: 'Iron', path: 'resource' },
+
+            // Resources - Wood
+            { code: 'WPA', name: 'wood_plank_A', file: 'Wood_Plank_A.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WPB', name: 'wood_plank_B', file: 'Wood_Plank_B.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WPL', name: 'wood_planks_lg', file: 'Wood_Planks_Stack_Large.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WPM', name: 'wood_planks_md', file: 'Wood_Planks_Stack_Medium.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WPS', name: 'wood_planks_sm', file: 'Wood_Planks_Stack_Small.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WLA', name: 'wood_log_A', file: 'Wood_Log_A.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WLB', name: 'wood_log_B', file: 'Wood_Log_B.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WLL', name: 'wood_logs_lg', file: 'Wood_Logs_Stack_Large.gltf', category: 'Wood', path: 'resource' },
+            { code: 'WLM', name: 'wood_logs_md', file: 'Wood_Logs_Stack_Medium.gltf', category: 'Wood', path: 'resource' },
+
+            // Resources - Stone
+            { code: 'STB', name: 'stone_brick', file: 'Stone_Brick.gltf', category: 'Stone', path: 'resource' },
+            { code: 'SBS', name: 'stone_bricks', file: 'Stone_Bricks.gltf', category: 'Stone', path: 'resource' },
+            { code: 'SBL', name: 'stone_stack_lg', file: 'Stone_Bricks_Stack_Large.gltf', category: 'Stone', path: 'resource' },
+            { code: 'SBM', name: 'stone_stack_md', file: 'Stone_Bricks_Stack_Medium.gltf', category: 'Stone', path: 'resource' },
+
+            // Resources - Textiles
+            { code: 'TXA', name: 'textile_A', file: 'Textiles_A.gltf', category: 'Textiles', path: 'resource' },
+            { code: 'TXB', name: 'textile_B', file: 'Textiles_B.gltf', category: 'Textiles', path: 'resource' },
+            { code: 'TXC', name: 'textile_C', file: 'Textiles_C.gltf', category: 'Textiles', path: 'resource' },
+            { code: 'TSL', name: 'textile_stack_lg', file: 'Textiles_Stack_Large.gltf', category: 'Textiles', path: 'resource' },
+            { code: 'TSC', name: 'textile_colored', file: 'Textiles_Stack_Large_Colored.gltf', category: 'Textiles', path: 'resource' },
+
+            // Resources - Parts
+            { code: 'PTS', name: 'parts_pile_sm', file: 'Parts_Pile_Small.gltf', category: 'Parts', path: 'resource' },
+            { code: 'PTM', name: 'parts_pile_md', file: 'Parts_Pile_Medium.gltf', category: 'Parts', path: 'resource' },
+            { code: 'PTL', name: 'parts_pile_lg', file: 'Parts_Pile_Large.gltf', category: 'Parts', path: 'resource' },
+            { code: 'COG', name: 'cog', file: 'Parts_Cog.gltf', category: 'Parts', path: 'resource' },
+
+            // Resources - Pallets
+            { code: 'PAL', name: 'pallet_wood', file: 'Pallet_Wood.gltf', category: 'Pallets', path: 'resource' },
+            { code: 'PWA', name: 'pallet_covered_A', file: 'Pallet_Wood_Covered_A.gltf', category: 'Pallets', path: 'resource' },
+            { code: 'PWB', name: 'pallet_covered_B', file: 'Pallet_Wood_Covered_B.gltf', category: 'Pallets', path: 'resource' },
+        ];
+
+        let gridSize = 11;
+        let gridData = [];
+        let selectedCell = null;
+        let draggedAsset = null;
+        let currentLayer = 1; // Default to layer 1 (Base)
+        const layerHeights = [0, 0, 0, 0]; // Y offset for each layer in 3D preview
+
+        // Three.js setup
+        let scene, camera, renderer, controls;
+        const loader = new GLTFLoader();
+        const loadedModels = new Map();
+
+        function initThree() {
+            const canvas = document.getElementById('preview-canvas');
+            const rect = canvas.getBoundingClientRect();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e); // Dark dungeon background
+
+            camera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.1, 1000);
+            camera.position.set(20, 20, 20);
+
+            renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+            renderer.setSize(rect.width, rect.height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+
+            // Lights - dimmer for dungeon atmosphere
+            const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambient);
+            const dir = new THREE.DirectionalLight(0xffffff, 0.6);
+            dir.position.set(10, 20, 10);
+            scene.add(dir);
+
+            // Add a warm point light for torch-like feel
+            const torchLight = new THREE.PointLight(0xff6600, 0.5, 30);
+            torchLight.position.set(0, 5, 0);
+            scene.add(torchLight);
+
+            // Ground plane - dark stone
+            const tileSize = 2;
+            const groundSize = gridSize * tileSize;
+            const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a3a });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.01;
+            scene.add(ground);
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function buildPalette() {
+            const container = document.getElementById('palette-items');
+            const categories = {};
+
+            assets.forEach(asset => {
+                if (!categories[asset.category]) {
+                    categories[asset.category] = [];
+                }
+                categories[asset.category].push(asset);
+            });
+
+            for (const [category, items] of Object.entries(categories)) {
+                const section = document.createElement('div');
+                section.className = 'palette-section';
+                section.innerHTML = `<h3>${category} (${items.length})</h3>`;
+
+                const itemsDiv = document.createElement('div');
+                itemsDiv.className = 'palette-items';
+
+                items.forEach(asset => {
+                    const item = document.createElement('div');
+                    item.className = 'palette-item';
+                    item.draggable = true;
+                    item.dataset.code = asset.code;
+                    item.dataset.name = asset.name;
+                    item.dataset.file = asset.file;
+                    item.innerHTML = `
+                        <div class="thumbnail" data-file="${asset.file}" data-path="${asset.path}">
+                            <span class="loading">...</span>
+                        </div>
+                        <span class="code">${asset.code}</span>
+                        <span class="name">${asset.name}</span>
+                    `;
+
+                    item.addEventListener('dragstart', (e) => {
+                        draggedAsset = asset;
+                        item.classList.add('dragging');
+                    });
+                    item.addEventListener('dragend', () => {
+                        item.classList.remove('dragging');
+                    });
+
+                    itemsDiv.appendChild(item);
+                });
+
+                section.appendChild(itemsDiv);
+                container.appendChild(section);
+            }
+        }
+
+        function buildGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 60px)`;
+            gridData = [];
+
+            for (let y = 0; y < gridSize; y++) {
+                const row = [];
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.x = x;
+                    cell.dataset.y = y;
+
+                    cell.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        cell.classList.add('drag-over');
+                    });
+                    cell.addEventListener('dragleave', () => {
+                        cell.classList.remove('drag-over');
+                    });
+                    cell.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        cell.classList.remove('drag-over');
+                        if (draggedAsset) {
+                            placeItem(x, y, draggedAsset);
+                        }
+                    });
+                    cell.addEventListener('click', () => {
+                        selectCell(x, y, cell);
+                    });
+
+                    grid.appendChild(cell);
+                    // Each cell now has layers array
+                    row.push({ x, y, layers: [null, null, null, null] }); // 4 layers
+                }
+                gridData.push(row);
+            }
+        }
+
+        window.changeLayer = function() {
+            currentLayer = parseInt(document.getElementById('current-layer').value);
+            // Update all cell displays to show current layer
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    updateCellDisplay(x, y);
+                }
+            }
+        };
+
+        function placeItem(x, y, asset) {
+            const cellData = gridData[y][x];
+            cellData.layers[currentLayer] = { item: asset, rotation: 0 };
+            updateCellDisplay(x, y);
+            updatePreview();
+            updateOutput();
+        }
+
+        function updateCellDisplay(x, y) {
+            const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+            const cellData = gridData[y][x];
+            const layerData = cellData.layers[currentLayer];
+
+            // Count how many layers have items
+            const layerCount = cellData.layers.filter(l => l !== null).length;
+
+            if (layerData && layerData.item) {
+                cell.classList.add('has-item');
+                cell.innerHTML = `
+                    <span class="item-code">${layerData.item.code}</span>
+                    <span class="item-name">${layerData.item.name}</span>
+                    ${layerData.rotation > 0 ? `<span class="rotation">${layerData.rotation}°</span>` : ''}
+                    ${layerCount > 1 ? `<span class="layer-indicator">${layerCount}L</span>` : ''}
+                `;
+            } else if (layerCount > 0) {
+                // Current layer empty but other layers have items
+                cell.classList.add('has-item');
+                cell.style.opacity = '0.5';
+                const firstLayer = cellData.layers.findIndex(l => l !== null);
+                const firstItem = cellData.layers[firstLayer];
+                cell.innerHTML = `
+                    <span class="item-code" style="opacity:0.5">${firstItem.item.code}</span>
+                    <span class="layer-indicator">${layerCount}L</span>
+                `;
+            } else {
+                cell.classList.remove('has-item');
+                cell.style.opacity = '1';
+                cell.innerHTML = '';
+            }
+        }
+
+        function selectCell(x, y, cell) {
+            document.querySelectorAll('.cell.selected').forEach(c => c.classList.remove('selected'));
+
+            const cellData = gridData[y][x];
+            const hasAnyItem = cellData.layers.some(l => l !== null);
+
+            if (hasAnyItem) {
+                cell.classList.add('selected');
+                selectedCell = { x, y };
+            } else {
+                selectedCell = null;
+            }
+        }
+
+        async function updatePreview() {
+            const toRemove = [];
+            scene.traverse(obj => {
+                if (obj.userData.isPlacedItem) {
+                    toRemove.push(obj);
+                }
+            });
+            toRemove.forEach(obj => scene.remove(obj));
+
+            const tileSize = 2;
+            const halfGrid = Math.floor(gridSize / 2);
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    // Render all layers for this cell
+                    for (let layer = 0; layer < 4; layer++) {
+                        const layerData = cellData.layers[layer];
+                        if (layerData && layerData.item) {
+                            try {
+                                const model = await loadModel(layerData.item.file, layerData.item.path);
+                                if (model) {
+                                    const clone = model.clone();
+                                    clone.position.set(
+                                        (x - halfGrid) * tileSize,
+                                        layerHeights[layer],
+                                        (y - halfGrid) * tileSize
+                                    );
+                                    clone.rotation.y = (layerData.rotation * Math.PI) / 180;
+                                    clone.userData.isPlacedItem = true;
+                                    scene.add(clone);
+                                }
+                            } catch (e) {
+                                console.log('Could not load:', layerData.item.file);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        async function loadModel(filename, assetPath) {
+            const cacheKey = `${assetPath}/${filename}`;
+            if (loadedModels.has(cacheKey)) {
+                return loadedModels.get(cacheKey);
+            }
+
+            // Determine base path based on asset type
+            let basePath;
+            if (assetPath === 'dungeon') {
+                basePath = 'assets/dungeon';
+            } else if (assetPath === 'halloween' || assetPath === 'spooktober' || assetPath === 'resource') {
+                basePath = `assets/kaykit/${assetPath}`;
+            } else {
+                basePath = `assets/kaykit/${assetPath}`;
+            }
+
+            return new Promise((resolve) => {
+                loader.load(
+                    `${basePath}/${filename}`,
+                    (gltf) => {
+                        const model = gltf.scene;
+                        model.scale.setScalar(1);
+                        loadedModels.set(cacheKey, model);
+                        resolve(model);
+                    },
+                    undefined,
+                    () => {
+                        loadedModels.set(cacheKey, null);
+                        resolve(null);
+                    }
+                );
+            });
+        }
+
+        function updateOutput() {
+            const items = [];
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cellData = gridData[y][x];
+                    for (let layer = 0; layer < 4; layer++) {
+                        const layerData = cellData.layers[layer];
+                        if (layerData && layerData.item) {
+                            items.push({
+                                x: x - Math.floor(gridSize / 2),
+                                y: y - Math.floor(gridSize / 2),
+                                layer: layer,
+                                file: layerData.item.file,
+                                path: layerData.item.path,
+                                rotation: layerData.rotation
+                            });
+                        }
+                    }
+                }
+            }
+
+            const output = document.getElementById('output');
+            if (items.length === 0) {
+                output.textContent = '// Place items to generate code';
+            } else {
+                output.textContent = `const dungeonTemplate = ${JSON.stringify(items, null, 2)};`;
+            }
+        }
+
+        window.clearGrid = function() {
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    gridData[y][x].layers = [null, null, null, null];
+                    updateCellDisplay(x, y);
+                }
+            }
+            updatePreview();
+            updateOutput();
+        };
+
+        window.exportLayout = function() {
+            const output = document.getElementById('output').textContent;
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Layout code copied to clipboard!');
+            });
+        };
+
+        window.resizeGrid = function() {
+            gridSize = parseInt(document.getElementById('grid-size').value) || 11;
+            gridSize = Math.max(3, Math.min(25, gridSize));
+            buildGrid();
+            updatePreview();
+            updateOutput();
+        };
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            // Layer switching with number keys (works without selection)
+            if (e.key >= '1' && e.key <= '4') {
+                currentLayer = parseInt(e.key) - 1;
+                document.getElementById('current-layer').value = currentLayer;
+                changeLayer();
+                return;
+            }
+
+            if (!selectedCell) return;
+            const { x, y } = selectedCell;
+            const layerData = gridData[y][x].layers[currentLayer];
+
+            if (e.key === 'r' || e.key === 'R') {
+                if (layerData) {
+                    layerData.rotation = (layerData.rotation + 90) % 360; // 90 degrees for square grid
+                    updateCellDisplay(x, y);
+                    updatePreview();
+                    updateOutput();
+                }
+            } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete' || e.key === 'Backspace') {
+                gridData[y][x].layers[currentLayer] = null;
+                updateCellDisplay(x, y);
+                // Keep selection if other layers have items
+                const hasAnyItem = gridData[y][x].layers.some(l => l !== null);
+                if (!hasAnyItem) {
+                    selectedCell = null;
+                }
+                updatePreview();
+                updateOutput();
+            }
+        });
+
+        // Search
+        document.getElementById('search').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.palette-item').forEach(item => {
+                const code = item.dataset.code.toLowerCase();
+                const name = item.dataset.name.toLowerCase();
+                item.style.display = (code.includes(term) || name.includes(term)) ? '' : 'none';
+            });
+        });
+
+        // Thumbnail rendering
+        const thumbnailCache = new Map();
+
+        async function renderThumbnails() {
+            const thumbnails = document.querySelectorAll('.thumbnail[data-file]');
+
+            const thumbRenderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                preserveDrawingBuffer: true
+            });
+            thumbRenderer.setSize(140, 110);
+            thumbRenderer.setPixelRatio(1);
+
+            const thumbScene = new THREE.Scene();
+            thumbScene.background = new THREE.Color(0x0d0d1a);
+
+            const thumbCamera = new THREE.PerspectiveCamera(40, 140/110, 0.1, 100);
+
+            const thumbAmbient = new THREE.AmbientLight(0xffffff, 0.7);
+            thumbScene.add(thumbAmbient);
+            const thumbDir = new THREE.DirectionalLight(0xffffff, 0.8);
+            thumbDir.position.set(3, 5, 4);
+            thumbScene.add(thumbDir);
+
+            for (const thumb of thumbnails) {
+                const file = thumb.dataset.file;
+                const assetPath = thumb.dataset.path;
+                const cacheKey = `${assetPath}/${file}`;
+
+                if (thumbnailCache.has(cacheKey)) {
+                    thumb.innerHTML = '';
+                    const img = document.createElement('img');
+                    img.src = thumbnailCache.get(cacheKey);
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    img.style.objectFit = 'contain';
+                    thumb.appendChild(img);
+                    continue;
+                }
+
+                try {
+                    const model = await loadModel(file, assetPath);
+                    if (model) {
+                        const toRemove = [];
+                        thumbScene.traverse(obj => {
+                            if (obj.userData.isThumbModel) toRemove.push(obj);
+                        });
+                        toRemove.forEach(obj => thumbScene.remove(obj));
+
+                        const clone = model.clone();
+                        clone.userData.isThumbModel = true;
+
+                        const box = new THREE.Box3().setFromObject(clone);
+                        const center = box.getCenter(new THREE.Vector3());
+                        const size = box.getSize(new THREE.Vector3());
+                        const maxDim = Math.max(size.x, size.y, size.z);
+
+                        clone.position.sub(center);
+
+                        const distance = maxDim * 2.2;
+                        thumbCamera.position.set(distance * 0.7, distance * 0.5, distance * 0.7);
+                        thumbCamera.lookAt(0, 0, 0);
+
+                        thumbScene.add(clone);
+
+                        thumbRenderer.render(thumbScene, thumbCamera);
+
+                        const dataUrl = thumbRenderer.domElement.toDataURL('image/png');
+                        thumbnailCache.set(cacheKey, dataUrl);
+
+                        thumb.innerHTML = '';
+                        const img = document.createElement('img');
+                        img.src = dataUrl;
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        img.style.objectFit = 'contain';
+                        thumb.appendChild(img);
+
+                        thumbScene.remove(clone);
+                    } else {
+                        thumb.innerHTML = '<span class="loading">N/A</span>';
+                    }
+                } catch (e) {
+                    thumb.innerHTML = '<span class="loading">ERR</span>';
+                }
+            }
+
+            thumbRenderer.dispose();
+        }
+
+        // Initialize
+        buildPalette();
+        buildGrid();
+        initThree();
+
+        setTimeout(renderThumbnails, 500);
+    </script>
+</body>
+</html>
